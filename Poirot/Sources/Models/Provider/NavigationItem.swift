@@ -12,6 +12,12 @@ struct NavigationItem: Identifiable, Hashable, Sendable {
         systemImage: "rectangle.stack.fill",
         requiredCapability: nil
     )
+    static let todos = NavigationItem(
+        id: "todos",
+        title: String(localized: "TODOs"),
+        systemImage: "checklist",
+        requiredCapability: nil
+    )
     static let commands = NavigationItem(
         id: "commands",
         title: String(localized: "Commands"),
@@ -23,6 +29,12 @@ struct NavigationItem: Identifiable, Hashable, Sendable {
         title: String(localized: "Skills"),
         systemImage: "bolt.fill",
         requiredCapability: .skills
+    )
+    static let plans = NavigationItem(
+        id: "plans",
+        title: String(localized: "Plans"),
+        systemImage: "list.bullet.clipboard.fill",
+        requiredCapability: .plans
     )
     static let mcpServers = NavigationItem(
         id: "mcpServers",
@@ -42,6 +54,12 @@ struct NavigationItem: Identifiable, Hashable, Sendable {
         systemImage: "person.2.fill",
         requiredCapability: .subAgents
     )
+    static let hooks = NavigationItem(
+        id: "hooks",
+        title: String(localized: "Hooks"),
+        systemImage: "arrow.triangle.branch",
+        requiredCapability: .hooks
+    )
     static let plugins = NavigationItem(
         id: "plugins",
         title: String(localized: "Plugins"),
@@ -54,8 +72,39 @@ struct NavigationItem: Identifiable, Hashable, Sendable {
         systemImage: "speaker.wave.3.fill",
         requiredCapability: .outputStyles
     )
+    static let memory = NavigationItem(
+        id: "memory",
+        title: String(localized: "Memory"),
+        systemImage: "brain.head.profile.fill",
+        requiredCapability: .memory
+    )
+    static let analytics = NavigationItem(
+        id: "analytics",
+        title: String(localized: "Analytics"),
+        systemImage: "chart.xyaxis.line",
+        requiredCapability: nil
+    )
+    static let history = NavigationItem(
+        id: "history",
+        title: String(localized: "History"),
+        systemImage: "clock.arrow.circlepath",
+        requiredCapability: nil
+    )
 
     static let allItems: [NavigationItem] = [
-        .sessions, .commands, .skills, .mcpServers, .plugins, .outputStyles, .models, .subAgents,
+        .sessions,
+        .analytics,
+        .todos,
+        .history,
+        .commands,
+        .skills,
+        .plans,
+        .memory,
+        .hooks,
+        .mcpServers,
+        .plugins,
+        .outputStyles,
+        .models,
+        .subAgents,
     ]
 }

@@ -11,6 +11,8 @@ struct SkillsListView: View {
     private var isLoaded = false
     @State
     private var selectedSkill: ClaudeSkill?
+    @State
+    private var filterQuery = ""
 
     @AppStorage("textEditor")
     private var textEditor = PreferredEditor.vscode.rawValue
@@ -20,6 +22,21 @@ struct SkillsListView: View {
 
     private var editor: PreferredEditor {
         PreferredEditor(rawValue: textEditor) ?? .vscode
+    }
+
+    private var filteredSkills: [ClaudeSkill] {
+        let q = filterQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return skills }
+        return skills
+            .compactMap { skill -> (ClaudeSkill, Int)? in
+                let best = max(
+                    HighlightedText.fuzzyMatch(skill.name, query: q)?.score ?? 0,
+                    HighlightedText.fuzzyMatch(skill.description, query: q)?.score ?? 0
+                )
+                return best > 0 ? (skill, best) : nil
+            }
+            .sorted { $0.1 > $1.1 }
+            .map(\.0)
     }
 
     var body: some View {
@@ -89,10 +106,7 @@ struct SkillsListView: View {
         VStack(spacing: 0) {
             ConfigScreenHeader(
                 item: item,
-                dynamicCount: "\(skills.count) \(skills.count == 1 ? "skill" : "skills")",
-                screenID: item.id,
-                showLayoutToggle: true,
-                showProjectPicker: true
+                dynamicCount: "\(skills.count) \(skills.count == 1 ? "skill" : "skills")"
             )
 
             if !isLoaded {
@@ -105,11 +119,25 @@ struct SkillsListView: View {
                     message: "No skills found",
                     hint: "~/.claude/skills/"
                 )
+            } else if filteredSkills.isEmpty {
+                ConfigEmptyState(
+                    icon: "magnifyingglass",
+                    message: "No skills match \"\(filterQuery)\"",
+                    hint: "Try a different search term"
+                )
             } else {
                 configContent
             }
         }
         .background(PoirotTheme.Colors.bgApp)
+        .toolbar { ConfigLayoutToolbar(
+            screenID: item.id,
+            filterQuery: $filterQuery,
+            placeholder: "Find in Skills\u{2026}",
+            showProjectPicker: true,
+            showAddButton: true
+        )
+        }
         .task {
             reloadSkills()
             if !isLoaded {
@@ -147,7 +175,7 @@ struct SkillsListView: View {
                 ForEach(0 ..< 2, id: \.self) { column in
                     LazyVStack(spacing: PoirotTheme.Spacing.lg) {
                         ForEach(skillsForColumn(column), id: \.element.id) { index, skill in
-                            SkillCard(skill: skill) {
+                            SkillCard(skill: skill, filterQuery: filterQuery) {
                                 selectSkill(skill)
                             }
                             .shimmerReveal(
@@ -159,21 +187,22 @@ struct SkillsListView: View {
                     }
                 }
             }
-            .padding(.horizontal, PoirotTheme.Spacing.xxl)
+            .padding(.horizontal, PoirotTheme.Spacing.xxxl)
             .padding(.top, PoirotTheme.Spacing.lg)
             .padding(.bottom, PoirotTheme.Spacing.xxl)
         }
+        .scrollIndicators(.never)
     }
 
     private func skillsForColumn(_ column: Int) -> [(offset: Int, element: ClaudeSkill)] {
-        Array(skills.enumerated()).filter { $0.offset % 2 == column }
+        Array(filteredSkills.enumerated()).filter { $0.offset % 2 == column }
     }
 
     private var configList: some View {
         ScrollView {
             LazyVStack(spacing: PoirotTheme.Spacing.md) {
-                ForEach(Array(skills.enumerated()), id: \.element.id) { index, skill in
-                    SkillCard(skill: skill) {
+                ForEach(Array(filteredSkills.enumerated()), id: \.element.id) { index, skill in
+                    SkillCard(skill: skill, filterQuery: filterQuery) {
                         selectSkill(skill)
                     }
                     .shimmerReveal(
@@ -183,10 +212,11 @@ struct SkillsListView: View {
                     )
                 }
             }
-            .padding(.horizontal, PoirotTheme.Spacing.xxl)
+            .padding(.horizontal, PoirotTheme.Spacing.xxxl)
             .padding(.top, PoirotTheme.Spacing.lg)
             .padding(.bottom, PoirotTheme.Spacing.xxl)
         }
+        .scrollIndicators(.never)
     }
 
     private func selectSkill(_ skill: ClaudeSkill) {
@@ -224,19 +254,46 @@ struct SkillsListView: View {
 
 private struct SkillCard: View {
     let skill: ClaudeSkill
+    var filterQuery: String = ""
     let onTap: () -> Void
+
+    @Environment(AppState.self)
+    private var appState
+
     @State
     private var isHovered = false
+
+    @State
+    private var copyTapped = false
 
     var body: some View {
         Button { onTap() } label: {
             VStack(alignment: .leading, spacing: PoirotTheme.Spacing.sm) {
-                Text(skill.name)
-                    .font(PoirotTheme.Typography.bodyMedium)
-                    .foregroundStyle(PoirotTheme.Colors.textPrimary)
+                HStack(alignment: .top) {
+                    Text(HighlightedText.fuzzyAttributedString(skill.name, query: filterQuery))
+                        .font(PoirotTheme.Typography.bodyMedium)
+                        .foregroundStyle(PoirotTheme.Colors.textPrimary)
+
+                    Spacer()
+
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(skill.name, forType: .string)
+                        copyTapped = true
+                        appState.showToast("Copied \(skill.name) to clipboard")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copyTapped = false }
+                    } label: {
+                        Image(systemName: copyTapped ? "checkmark" : "doc.on.doc")
+                            .font(PoirotTheme.Typography.tiny)
+                            .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy Skill Name")
+                }
 
                 if !skill.description.isEmpty {
-                    Text(skill.description)
+                    Text(HighlightedText.fuzzyAttributedString(skill.description, query: filterQuery))
                         .font(PoirotTheme.Typography.caption)
                         .foregroundStyle(PoirotTheme.Colors.textSecondary)
                         .lineLimit(3)

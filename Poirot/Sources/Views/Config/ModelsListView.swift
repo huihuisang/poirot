@@ -12,20 +12,42 @@ struct ModelsListView: View {
     private var currentDefault: String?
     @State
     private var projectModel: String?
+    @State
+    private var filterQuery = ""
+
+    private var filteredModels: [String] {
+        let q = filterQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return provider.supportedModels }
+        return provider.supportedModels
+            .compactMap { model -> (String, Int)? in
+                guard let m = HighlightedText.fuzzyMatch(model, query: q) else { return nil }
+                return (model, m.score)
+            }
+            .sorted { $0.1 > $1.1 }
+            .map(\.0)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             ConfigScreenHeader(
                 item: item,
-                dynamicCount: "\(provider.supportedModels.count) \(provider.supportedModels.count == 1 ? "model" : "models")",
-                screenID: item.id,
-                showLayoutToggle: true,
-                showProjectPicker: true
+                dynamicCount: "\(provider.supportedModels.count) \(provider.supportedModels.count == 1 ? "model" : "models")"
             )
 
-            configContent
+            if filteredModels.isEmpty, !filterQuery.isEmpty {
+                ConfigEmptyState(
+                    icon: "magnifyingglass",
+                    message: "No models match \"\(filterQuery)\"",
+                    hint: "Try a different search term"
+                )
+            } else {
+                configContent
+            }
         }
         .background(PoirotTheme.Colors.bgApp)
+        .toolbar {
+            ConfigLayoutToolbar(screenID: item.id, filterQuery: $filterQuery, placeholder: "Find in Models\u{2026}")
+        }
         .task {
             currentDefault = provider.defaultModelName
             loadProjectModel()
@@ -60,6 +82,7 @@ struct ModelsListView: View {
                             ForEach(modelsForColumn(column), id: \.element) { index, model in
                                 ModelCard(
                                     name: model,
+                                    filterQuery: filterQuery,
                                     isDefault: model == (currentDefault ?? provider.defaultModelName),
                                     isProjectDefault: model == projectModel,
                                     hasProject: appState.configProjectPath != nil,
@@ -76,15 +99,16 @@ struct ModelsListView: View {
                         }
                     }
                 }
-                .padding(.horizontal, PoirotTheme.Spacing.xxl)
+                .padding(.horizontal, PoirotTheme.Spacing.xxxl)
                 .padding(.top, PoirotTheme.Spacing.lg)
                 .padding(.bottom, PoirotTheme.Spacing.xxl)
             }
         }
+        .scrollIndicators(.never)
     }
 
     private func modelsForColumn(_ column: Int) -> [(offset: Int, element: String)] {
-        Array(provider.supportedModels.enumerated()).filter { $0.offset % 2 == column }
+        Array(filteredModels.enumerated()).filter { $0.offset % 2 == column }
     }
 
     private var configList: some View {
@@ -93,9 +117,10 @@ struct ModelsListView: View {
                 infoBanner
 
                 LazyVStack(spacing: PoirotTheme.Spacing.md) {
-                    ForEach(Array(provider.supportedModels.enumerated()), id: \.element) { index, model in
+                    ForEach(Array(filteredModels.enumerated()), id: \.element) { index, model in
                         ModelCard(
                             name: model,
+                            filterQuery: filterQuery,
                             isDefault: model == (currentDefault ?? provider.defaultModelName),
                             isProjectDefault: model == projectModel,
                             hasProject: appState.configProjectPath != nil,
@@ -110,11 +135,12 @@ struct ModelsListView: View {
                         )
                     }
                 }
-                .padding(.horizontal, PoirotTheme.Spacing.xxl)
+                .padding(.horizontal, PoirotTheme.Spacing.xxxl)
                 .padding(.top, PoirotTheme.Spacing.lg)
                 .padding(.bottom, PoirotTheme.Spacing.xxl)
             }
         }
+        .scrollIndicators(.never)
     }
 
     private var infoBanner: some View {
@@ -140,7 +166,7 @@ struct ModelsListView: View {
                         .strokeBorder(PoirotTheme.Colors.blue.opacity(0.1))
                 )
         )
-        .padding(.horizontal, PoirotTheme.Spacing.xxl)
+        .padding(.horizontal, PoirotTheme.Spacing.xxxl)
         .padding(.top, PoirotTheme.Spacing.lg)
         .padding(.bottom, PoirotTheme.Spacing.sm)
     }
@@ -199,6 +225,7 @@ struct ModelsListView: View {
 
 private struct ModelCard: View {
     let name: String
+    var filterQuery: String = ""
     let isDefault: Bool
     let isProjectDefault: Bool
     let hasProject: Bool
@@ -237,7 +264,7 @@ private struct ModelCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: PoirotTheme.Spacing.sm) {
             HStack(spacing: PoirotTheme.Spacing.sm) {
-                Text(name)
+                Text(HighlightedText.fuzzyAttributedString(name, query: filterQuery))
                     .font(PoirotTheme.Typography.bodyMedium)
                     .foregroundStyle(PoirotTheme.Colors.textPrimary)
 

@@ -5,7 +5,10 @@ struct SidebarView: View {
     private var appState
     @Environment(\.provider)
     private var provider
-
+    @AppStorage("accentColor")
+    private var accentColorRaw = AccentColor.golden.rawValue
+    @AppStorage("colorTheme")
+    private var colorThemeRaw = ColorTheme.default.rawValue
     var body: some View {
         VStack(spacing: 0) {
             navigationItems
@@ -22,13 +25,14 @@ struct SidebarView: View {
 
     private var navigationItems: some View {
         VStack(spacing: PoirotTheme.Spacing.xxs) {
-            ForEach(provider.navigationItems) { item in
+            ForEach(Array(provider.navigationItems.enumerated()), id: \.element.id) { index, item in
                 @Bindable
                 var state = appState
+                let isKeyboardSelected = appState.sidebarKeyboardIndex == index
                 Button {
                     state.selectedNav = item
                 } label: {
-                    HStack {
+                    HStack(alignment: .firstTextBaseline) {
                         Label(item.title, systemImage: item.systemImage)
 
                         Spacer()
@@ -45,8 +49,12 @@ struct SidebarView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(NavItemButtonStyle(isActive: appState.selectedNav == item))
+                .buttonStyle(NavItemButtonStyle(
+                    isActive: appState.selectedNav == item,
+                    isKeyboardSelected: isKeyboardSelected
+                ))
             }
         }
         .padding(PoirotTheme.Spacing.md)
@@ -260,6 +268,10 @@ private struct ProjectRow: View {
     var highlightQuery: String = ""
     @Environment(AppState.self)
     private var appState
+    @AppStorage("accentColor")
+    private var accentColorRaw = AccentColor.golden.rawValue
+    @AppStorage("colorTheme")
+    private var colorThemeRaw = ColorTheme.default.rawValue
     @State
     private var isHovered = false
     @State
@@ -419,6 +431,10 @@ private struct SessionRow: View {
     private var appState
     @Environment(\.provider)
     private var provider
+    @AppStorage("accentColor")
+    private var accentColorRaw = AccentColor.golden.rawValue
+    @AppStorage("colorTheme")
+    private var colorThemeRaw = ColorTheme.default.rawValue
     @State
     private var isHovered = false
     @State
@@ -434,23 +450,38 @@ private struct SessionRow: View {
             guard state.selectedSession?.id != session.id else { return }
             state.selectedSession = session
         } label: {
-            HStack {
-                MarqueeText(text: session.title, font: PoirotTheme.Typography.caption, highlightQuery: highlightQuery)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    MarqueeText(
+                        text: session.title,
+                        font: PoirotTheme.Typography.caption,
+                        highlightQuery: highlightQuery
+                    )
 
-                Spacer()
+                    Spacer()
 
-                if isHovered || isMenuPresented {
-                    sessionMenu
-                        .transition(.opacity)
-                } else {
-                    Text(session.timeAgo)
+                    if isHovered || isMenuPresented {
+                        sessionMenu
+                            .transition(.opacity)
+                    } else {
+                        Text(session.timeAgo)
+                            .font(PoirotTheme.Typography.tiny)
+                            .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                    }
+                }
+
+                if let firstPrompt = session.firstPrompt, !firstPrompt.isEmpty {
+                    Text(firstPrompt)
                         .font(PoirotTheme.Typography.tiny)
                         .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
             .padding(.vertical, 5)
             .padding(.horizontal, PoirotTheme.Spacing.md)
             .padding(.leading, PoirotTheme.Spacing.lg)
+            .contentShape(Rectangle())
         }
         .buttonStyle(SessionItemButtonStyle(isActive: appState.selectedSession == session))
         .onHover { hovering in
@@ -583,6 +614,7 @@ private struct PopoverMenuItem: View {
 
 private struct NavItemButtonStyle: ButtonStyle {
     let isActive: Bool
+    var isKeyboardSelected: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -595,6 +627,13 @@ private struct NavItemButtonStyle: ButtonStyle {
                     .fill(isActive ? PoirotTheme.Colors.accentDim : .clear)
             )
             .contentShape(Rectangle())
+            .overlay(
+                RoundedRectangle(cornerRadius: PoirotTheme.Radius.sm)
+                    .strokeBorder(
+                        PoirotTheme.Colors.accent.opacity(isKeyboardSelected ? 0.5 : 0),
+                        lineWidth: 1
+                    )
+            )
     }
 }
 

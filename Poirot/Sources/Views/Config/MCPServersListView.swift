@@ -8,6 +8,12 @@ struct MCPServersListView: View {
     private var isRevealed = false
     @State
     private var isLoaded = false
+    @State
+    private var filterQuery = ""
+    @State
+    private var configFileWatcher: FileWatcher?
+    @State
+    private var authCacheWatcher: FileWatcher?
 
     @AppStorage("textEditor")
     private var textEditor = PreferredEditor.vscode.rawValue
@@ -19,14 +25,25 @@ struct MCPServersListView: View {
         PreferredEditor(rawValue: textEditor) ?? .vscode
     }
 
+    private var filteredServers: [MCPServer] {
+        let q = filterQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return servers }
+        return servers
+            .compactMap { server -> (MCPServer, Int)? in
+                let nameScore = HighlightedText.fuzzyMatch(server.name, query: q)?.score ?? 0
+                let toolScore = server.tools.compactMap { HighlightedText.fuzzyMatch($0, query: q)?.score }.max() ?? 0
+                let best = max(nameScore, toolScore)
+                return best > 0 ? (server, best) : nil
+            }
+            .sorted { $0.1 > $1.1 }
+            .map(\.0)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ConfigScreenHeader(
                 item: item,
-                dynamicCount: "\(servers.count) \(servers.count == 1 ? "server" : "servers")",
-                screenID: item.id,
-                showLayoutToggle: true,
-                showProjectPicker: true
+                dynamicCount: "\(servers.count) \(servers.count == 1 ? "server" : "servers")"
             )
 
             if !isLoaded {
@@ -39,11 +56,24 @@ struct MCPServersListView: View {
                     message: "No MCP servers configured",
                     hint: "~/.claude.json"
                 )
+            } else if filteredServers.isEmpty {
+                ConfigEmptyState(
+                    icon: "magnifyingglass",
+                    message: "No servers match \"\(filterQuery)\"",
+                    hint: "Try a different search term"
+                )
             } else {
                 configContent
             }
         }
         .background(PoirotTheme.Colors.bgApp)
+        .toolbar { ConfigLayoutToolbar(
+            screenID: item.id,
+            filterQuery: $filterQuery,
+            placeholder: "Find in MCP Servers\u{2026}",
+            showProjectPicker: true
+        )
+        }
         .task {
             reloadServers()
             if !isLoaded {
@@ -61,6 +91,36 @@ struct MCPServersListView: View {
         .onChange(of: appState.configProjectPath) {
             reloadServers()
         }
+        .onAppear { startFileWatchers() }
+        .onDisappear { stopFileWatchers() }
+    }
+
+    private func startFileWatchers() {
+        guard configFileWatcher == nil else { return }
+
+        // Watch ~/.claude.json for config changes
+        let configPath = SettingsWriter.claudeConfigFileURL().path
+        let cfgWatcher = FileWatcher { [weak appState] in
+            reloadServers()
+            appState?.sidebarCounts[NavigationItem.mcpServers.id] = servers.count
+        }
+        cfgWatcher.start(path: configPath)
+        configFileWatcher = cfgWatcher
+
+        // Watch ~/.claude/mcp-needs-auth-cache.json for auth status changes
+        let authPath = MCPServerStatusChecker.authCacheURL.path
+        let authWatcher = FileWatcher {
+            reloadServers()
+        }
+        authWatcher.start(path: authPath)
+        authCacheWatcher = authWatcher
+    }
+
+    private func stopFileWatchers() {
+        configFileWatcher?.stop()
+        configFileWatcher = nil
+        authCacheWatcher?.stop()
+        authCacheWatcher = nil
     }
 
     @ViewBuilder
@@ -83,6 +143,7 @@ struct MCPServersListView: View {
                             ForEach(serversForColumn(column), id: \.element.id) { index, server in
                                 MCPServerCard(
                                     server: server,
+                                    filterQuery: filterQuery,
                                     onOpenInEditor: { openServerInEditor(server) },
                                     onShowInFinder: { showSettingsInFinder() },
                                     onRemove: { removeServer(server) }
@@ -96,15 +157,16 @@ struct MCPServersListView: View {
                         }
                     }
                 }
-                .padding(.horizontal, PoirotTheme.Spacing.xxl)
+                .padding(.horizontal, PoirotTheme.Spacing.xxxl)
                 .padding(.top, PoirotTheme.Spacing.lg)
                 .padding(.bottom, PoirotTheme.Spacing.xxl)
             }
         }
+        .scrollIndicators(.never)
     }
 
     private func serversForColumn(_ column: Int) -> [(offset: Int, element: MCPServer)] {
-        Array(servers.enumerated()).filter { $0.offset % 2 == column }
+        Array(filteredServers.enumerated()).filter { $0.offset % 2 == column }
     }
 
     private var configList: some View {
@@ -113,9 +175,10 @@ struct MCPServersListView: View {
                 infoBanner
 
                 LazyVStack(spacing: PoirotTheme.Spacing.md) {
-                    ForEach(Array(servers.enumerated()), id: \.element.id) { index, server in
+                    ForEach(Array(filteredServers.enumerated()), id: \.element.id) { index, server in
                         MCPServerCard(
                             server: server,
+                            filterQuery: filterQuery,
                             onOpenInEditor: { openServerInEditor(server) },
                             onShowInFinder: { showSettingsInFinder() },
                             onRemove: { removeServer(server) }
@@ -127,11 +190,12 @@ struct MCPServersListView: View {
                         )
                     }
                 }
-                .padding(.horizontal, PoirotTheme.Spacing.xxl)
+                .padding(.horizontal, PoirotTheme.Spacing.xxxl)
                 .padding(.top, PoirotTheme.Spacing.lg)
                 .padding(.bottom, PoirotTheme.Spacing.xxl)
             }
         }
+        .scrollIndicators(.never)
     }
 
     private var infoBanner: some View {
@@ -154,7 +218,7 @@ struct MCPServersListView: View {
                         .strokeBorder(PoirotTheme.Colors.blue.opacity(0.1))
                 )
         )
-        .padding(.horizontal, PoirotTheme.Spacing.xxl)
+        .padding(.horizontal, PoirotTheme.Spacing.xxxl)
         .padding(.top, PoirotTheme.Spacing.lg)
         .padding(.bottom, PoirotTheme.Spacing.sm)
     }
@@ -185,7 +249,10 @@ struct MCPServersListView: View {
     }
 
     private func reloadServers() {
-        servers = ClaudeConfigLoader.loadMCPServers(projectPath: appState.effectiveConfigProjectPath)
+        let loaded = ClaudeConfigLoader.loadMCPServers(
+            projectPath: appState.effectiveConfigProjectPath
+        )
+        servers = MCPServerStatusChecker.resolveStatuses(for: loaded)
     }
 }
 
@@ -193,6 +260,7 @@ struct MCPServersListView: View {
 
 private struct MCPServerCard: View {
     let server: MCPServer
+    var filterQuery: String = ""
     let onOpenInEditor: () -> Void
     let onShowInFinder: () -> Void
     let onRemove: () -> Void
@@ -223,11 +291,10 @@ private struct MCPServerCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: PoirotTheme.Spacing.sm) {
             HStack(spacing: PoirotTheme.Spacing.sm) {
-                Circle()
-                    .fill(PoirotTheme.Colors.green)
-                    .frame(width: 8, height: 8)
+                MCPServerStatusIndicator(status: server.status)
+                    .help(server.status.label)
 
-                Text(server.name)
+                Text(HighlightedText.fuzzyAttributedString(server.name, query: filterQuery))
                     .font(PoirotTheme.Typography.bodyMedium)
                     .foregroundStyle(PoirotTheme.Colors.textPrimary)
 
@@ -243,39 +310,41 @@ private struct MCPServerCard: View {
                         )
                 }
 
-                ConfigScopeBadge(scope: server.scope)
+                MCPServerSourceBadge(server: server)
 
                 Spacer()
 
-                Button {
-                    onOpenInEditor()
-                } label: {
-                    Image(systemName: "curlybraces")
-                        .font(PoirotTheme.Typography.tiny)
-                        .foregroundStyle(PoirotTheme.Colors.textTertiary)
-                }
-                .buttonStyle(.plain)
-                .help("Open in editor")
+                if server.source == .user {
+                    Button {
+                        onOpenInEditor()
+                    } label: {
+                        Image(systemName: "curlybraces")
+                            .font(PoirotTheme.Typography.tiny)
+                            .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open in editor")
 
-                Button {
-                    onShowInFinder()
-                } label: {
-                    Image(systemName: "folder")
-                        .font(PoirotTheme.Typography.tiny)
-                        .foregroundStyle(PoirotTheme.Colors.textTertiary)
-                }
-                .buttonStyle(.plain)
-                .help("Show in Finder")
+                    Button {
+                        onShowInFinder()
+                    } label: {
+                        Image(systemName: "folder")
+                            .font(PoirotTheme.Typography.tiny)
+                            .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show in Finder")
 
-                Button {
-                    showDeleteConfirmation = true
-                } label: {
-                    Image(systemName: "trash")
-                        .font(PoirotTheme.Typography.tiny)
-                        .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                    Button {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(PoirotTheme.Typography.tiny)
+                            .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove server")
                 }
-                .buttonStyle(.plain)
-                .help("Remove server")
             }
 
             if let info = connectionInfo {
@@ -290,7 +359,7 @@ private struct MCPServerCard: View {
                 VStack(alignment: .leading, spacing: PoirotTheme.Spacing.xs) {
                     let displayTools = isExpanded ? server.tools : Array(server.tools.prefix(5))
                     ForEach(displayTools, id: \.self) { tool in
-                        Text(tool)
+                        Text(HighlightedText.fuzzyAttributedString(tool, query: filterQuery))
                             .font(PoirotTheme.Typography.codeSmall)
                             .foregroundStyle(PoirotTheme.Colors.blue)
                             .padding(.horizontal, PoirotTheme.Spacing.sm)

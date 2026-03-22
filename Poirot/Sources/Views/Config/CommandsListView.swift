@@ -11,6 +11,8 @@ struct CommandsListView: View {
     private var isLoaded = false
     @State
     private var selectedCommand: ClaudeCommand?
+    @State
+    private var filterQuery = ""
 
     @AppStorage("textEditor")
     private var textEditor = PreferredEditor.vscode.rawValue
@@ -20,6 +22,21 @@ struct CommandsListView: View {
 
     private var editor: PreferredEditor {
         PreferredEditor(rawValue: textEditor) ?? .vscode
+    }
+
+    private var filteredCommands: [ClaudeCommand] {
+        let q = filterQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return commands }
+        return commands
+            .compactMap { cmd -> (ClaudeCommand, Int)? in
+                let best = max(
+                    HighlightedText.fuzzyMatch(cmd.name, query: q)?.score ?? 0,
+                    HighlightedText.fuzzyMatch(cmd.description, query: q)?.score ?? 0
+                )
+                return best > 0 ? (cmd, best) : nil
+            }
+            .sorted { $0.1 > $1.1 }
+            .map(\.0)
     }
 
     var body: some View {
@@ -101,10 +118,7 @@ struct CommandsListView: View {
         VStack(spacing: 0) {
             ConfigScreenHeader(
                 item: item,
-                dynamicCount: "\(commands.count) \(commands.count == 1 ? "command" : "commands")",
-                screenID: item.id,
-                showLayoutToggle: true,
-                showProjectPicker: true
+                dynamicCount: "\(commands.count) \(commands.count == 1 ? "command" : "commands")"
             )
 
             if !isLoaded {
@@ -117,11 +131,25 @@ struct CommandsListView: View {
                     message: "No commands found",
                     hint: "~/.claude/commands/"
                 )
+            } else if filteredCommands.isEmpty {
+                ConfigEmptyState(
+                    icon: "magnifyingglass",
+                    message: "No commands match \"\(filterQuery)\"",
+                    hint: "Try a different search term"
+                )
             } else {
                 configContent
             }
         }
         .background(PoirotTheme.Colors.bgApp)
+        .toolbar { ConfigLayoutToolbar(
+            screenID: item.id,
+            filterQuery: $filterQuery,
+            placeholder: "Find in Commands\u{2026}",
+            showProjectPicker: true,
+            showAddButton: true
+        )
+        }
         .task {
             reloadCommands()
             if !isLoaded {
@@ -159,7 +187,7 @@ struct CommandsListView: View {
                 ForEach(0 ..< 2, id: \.self) { column in
                     LazyVStack(spacing: PoirotTheme.Spacing.lg) {
                         ForEach(commandsForColumn(column), id: \.element.id) { index, command in
-                            CommandCard(command: command) {
+                            CommandCard(command: command, filterQuery: filterQuery) {
                                 selectCommand(command)
                             }
                             .shimmerReveal(
@@ -171,21 +199,22 @@ struct CommandsListView: View {
                     }
                 }
             }
-            .padding(.horizontal, PoirotTheme.Spacing.xxl)
+            .padding(.horizontal, PoirotTheme.Spacing.xxxl)
             .padding(.top, PoirotTheme.Spacing.lg)
             .padding(.bottom, PoirotTheme.Spacing.xxl)
         }
+        .scrollIndicators(.never)
     }
 
     private func commandsForColumn(_ column: Int) -> [(offset: Int, element: ClaudeCommand)] {
-        Array(commands.enumerated()).filter { $0.offset % 2 == column }
+        Array(filteredCommands.enumerated()).filter { $0.offset % 2 == column }
     }
 
     private var configList: some View {
         ScrollView {
             LazyVStack(spacing: PoirotTheme.Spacing.md) {
-                ForEach(Array(commands.enumerated()), id: \.element.id) { index, command in
-                    CommandCard(command: command) {
+                ForEach(Array(filteredCommands.enumerated()), id: \.element.id) { index, command in
+                    CommandCard(command: command, filterQuery: filterQuery) {
                         selectCommand(command)
                     }
                     .shimmerReveal(
@@ -195,10 +224,11 @@ struct CommandsListView: View {
                     )
                 }
             }
-            .padding(.horizontal, PoirotTheme.Spacing.xxl)
+            .padding(.horizontal, PoirotTheme.Spacing.xxxl)
             .padding(.top, PoirotTheme.Spacing.lg)
             .padding(.bottom, PoirotTheme.Spacing.xxl)
         }
+        .scrollIndicators(.never)
     }
 
     private func selectCommand(_ command: ClaudeCommand) {
@@ -236,15 +266,23 @@ struct CommandsListView: View {
 
 private struct CommandCard: View {
     let command: ClaudeCommand
+    var filterQuery: String = ""
     let onTap: () -> Void
+
+    @Environment(AppState.self)
+    private var appState
+
     @State
     private var isHovered = false
+
+    @State
+    private var copyTapped = false
 
     var body: some View {
         Button { onTap() } label: {
             VStack(alignment: .leading, spacing: PoirotTheme.Spacing.sm) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(command.name)
+                    Text(HighlightedText.fuzzyAttributedString(command.name, query: filterQuery))
                         .font(PoirotTheme.Typography.bodyMedium)
                         .foregroundStyle(PoirotTheme.Colors.textPrimary)
 
@@ -255,10 +293,25 @@ private struct CommandCard: View {
                     }
 
                     Spacer()
+
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("/\(command.name)", forType: .string)
+                        copyTapped = true
+                        appState.showToast("Copied /\(command.name) to clipboard")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copyTapped = false }
+                    } label: {
+                        Image(systemName: copyTapped ? "checkmark" : "doc.on.doc")
+                            .font(PoirotTheme.Typography.tiny)
+                            .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy Command")
                 }
 
                 if !command.description.isEmpty {
-                    Text(command.description)
+                    Text(HighlightedText.fuzzyAttributedString(command.description, query: filterQuery))
                         .font(PoirotTheme.Typography.caption)
                         .foregroundStyle(PoirotTheme.Colors.textSecondary)
                         .lineLimit(2)

@@ -43,6 +43,36 @@ POIROT is a native macOS SwiftUI companion app for Claude Code. It reads session
 - Mark file I/O and heavy computation as `nonisolated`
 - Service protocols have hand-written mocks in `PoirotTests/Mocks/`
 
+### Parallel Development (Worktrees)
+- When creating a worktree, change `PRODUCT_BUNDLE_IDENTIFIER` in `project.yml` to avoid conflicts with running instances
+- Pattern: `fyi.poirot-N` where N is the worktree number (e.g., `fyi.poirot-1`, `fyi.poirot-2`)
+- Determine N by checking existing worktrees or running Poirot instances
+- This allows multiple Poirot builds to run simultaneously during development
+- Always regenerate the Xcode project after changing: `xcodegen generate`
+- Copy `.claude/` directory (skills, commands, settings) from the main branch to the worktree
+
+### Feature Development Workflow
+- Create a plan following the project guidelines before implementing
+- Use available skills during planning and implementation:
+  - `sf-symbols-expert` — icon selection, rendering modes, animations
+  - `swiftui-expert-skill` — view composition, state management, performance
+  - `swift-testing-expert` — test structure, macros, parameterized tests
+  - `swift-concurrency` — async/await, actors, nonisolated patterns
+  - `core-data-expert` — if persistence is involved
+- Write unit tests when pertinent using Swift Testing (`@Suite`, `@Test`, `#expect`)
+- Add snapshot tests when pertinent for new UI components
+- Update README with new feature documentation when pertinent, including snapshots
+
+### New Feature Checklist
+Every new feature or view must follow these steps:
+1. Use existing patterns (list, gallery) for page content layout — do not invent new layout paradigms
+2. Use markdown rendering as pertinent (see Sessions and Plans sidebar items for examples)
+3. Add items to the universal search (⌘K)
+4. Watch for file changes in the feature's respective folder/file for live updates
+5. Include in navigation history if pertinent
+6. Move new screenshots to `assets/showcase/`
+7. Add new information to the `README.md` file
+
 ### Git & PRs
 - Never mention AI co-authoring in commits or PRs
 - Branch naming: `feature/description` or `feature/TICKET-description`

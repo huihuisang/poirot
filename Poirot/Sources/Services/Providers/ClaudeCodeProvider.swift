@@ -43,6 +43,15 @@ struct ClaudeCodeProvider: ProviderDescribing {
             requiredCapability: .commands
         ),
         ConfigurationItem(
+            id: "plans",
+            icon: "list.bullet.clipboard.fill",
+            iconColor: PoirotTheme.Colors.teal,
+            title: String(localized: "Plans"),
+            count: String(localized: "Saved"),
+            description: String(localized: "Named plan files saved by Claude Code sessions"),
+            requiredCapability: .plans
+        ),
+        ConfigurationItem(
             id: "mcpServers",
             icon: "powerplug.fill",
             iconColor: PoirotTheme.Colors.green,
@@ -65,9 +74,27 @@ struct ClaudeCodeProvider: ProviderDescribing {
             icon: "person.2.fill",
             iconColor: PoirotTheme.Colors.orange,
             title: String(localized: "Sub-agents"),
-            count: String(localized: "4 types"),
-            description: String(localized: "Built-in specialized agents for explore, plan, and code tasks"),
+            count: String(localized: "4+ types"),
+            description: String(localized: "Built-in and custom agents for explore, plan, and code tasks"),
             requiredCapability: .subAgents
+        ),
+        ConfigurationItem(
+            id: "memory",
+            icon: "brain.head.profile.fill",
+            iconColor: PoirotTheme.Colors.purple,
+            title: String(localized: "Memory"),
+            count: String(localized: "Per-project"),
+            description: String(localized: "Auto-memory files that Claude loads into every conversation"),
+            requiredCapability: .memory
+        ),
+        ConfigurationItem(
+            id: "hooks",
+            icon: "arrow.triangle.branch",
+            iconColor: PoirotTheme.Colors.orange,
+            title: String(localized: "Hooks"),
+            count: String(localized: "Event-driven"),
+            description: String(localized: "Event-driven shell commands and HTTP endpoints"),
+            requiredCapability: .hooks
         ),
         ConfigurationItem(
             id: "plugins",

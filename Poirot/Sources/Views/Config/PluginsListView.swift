@@ -8,17 +8,32 @@ struct PluginsListView: View {
     private var isRevealed = false
     @State
     private var isLoaded = false
+    @State
+    private var filterQuery = ""
 
     @Environment(AppState.self)
     private var appState
+
+    private var filteredPlugins: [ClaudePlugin] {
+        let q = filterQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return plugins }
+        return plugins
+            .compactMap { plugin -> (ClaudePlugin, Int)? in
+                let best = max(
+                    HighlightedText.fuzzyMatch(plugin.name, query: q)?.score ?? 0,
+                    HighlightedText.fuzzyMatch(plugin.author, query: q)?.score ?? 0
+                )
+                return best > 0 ? (plugin, best) : nil
+            }
+            .sorted { $0.1 > $1.1 }
+            .map(\.0)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             ConfigScreenHeader(
                 item: item,
-                dynamicCount: "\(plugins.count) \(plugins.count == 1 ? "plugin" : "plugins")",
-                screenID: item.id,
-                showLayoutToggle: true
+                dynamicCount: "\(plugins.count) \(plugins.count == 1 ? "plugin" : "plugins")"
             )
 
             if !isLoaded {
@@ -31,11 +46,20 @@ struct PluginsListView: View {
                     message: "No plugins installed",
                     hint: "~/.claude/plugins/"
                 )
+            } else if filteredPlugins.isEmpty {
+                ConfigEmptyState(
+                    icon: "magnifyingglass",
+                    message: "No plugins match \"\(filterQuery)\"",
+                    hint: "Try a different search term"
+                )
             } else {
                 configContent
             }
         }
         .background(PoirotTheme.Colors.bgApp)
+        .toolbar {
+            ConfigLayoutToolbar(screenID: item.id, filterQuery: $filterQuery, placeholder: "Find in Plugins\u{2026}")
+        }
         .task {
             reloadPlugins()
             if !isLoaded {
@@ -72,6 +96,7 @@ struct PluginsListView: View {
                             ForEach(pluginsForColumn(column), id: \.element.id) { index, plugin in
                                 PluginCard(
                                     plugin: plugin,
+                                    filterQuery: filterQuery,
                                     onToggle: { togglePlugin(plugin) },
                                     onRemove: { removePlugin(plugin) }
                                 )
@@ -84,15 +109,16 @@ struct PluginsListView: View {
                         }
                     }
                 }
-                .padding(.horizontal, PoirotTheme.Spacing.xxl)
+                .padding(.horizontal, PoirotTheme.Spacing.xxxl)
                 .padding(.top, PoirotTheme.Spacing.lg)
                 .padding(.bottom, PoirotTheme.Spacing.xxl)
             }
         }
+        .scrollIndicators(.never)
     }
 
     private func pluginsForColumn(_ column: Int) -> [(offset: Int, element: ClaudePlugin)] {
-        Array(plugins.enumerated()).filter { $0.offset % 2 == column }
+        Array(filteredPlugins.enumerated()).filter { $0.offset % 2 == column }
     }
 
     private var configList: some View {
@@ -101,9 +127,10 @@ struct PluginsListView: View {
                 infoBanner
 
                 LazyVStack(spacing: PoirotTheme.Spacing.md) {
-                    ForEach(Array(plugins.enumerated()), id: \.element.id) { index, plugin in
+                    ForEach(Array(filteredPlugins.enumerated()), id: \.element.id) { index, plugin in
                         PluginCard(
                             plugin: plugin,
+                            filterQuery: filterQuery,
                             onToggle: { togglePlugin(plugin) },
                             onRemove: { removePlugin(plugin) }
                         )
@@ -114,11 +141,12 @@ struct PluginsListView: View {
                         )
                     }
                 }
-                .padding(.horizontal, PoirotTheme.Spacing.xxl)
+                .padding(.horizontal, PoirotTheme.Spacing.xxxl)
                 .padding(.top, PoirotTheme.Spacing.lg)
                 .padding(.bottom, PoirotTheme.Spacing.xxl)
             }
         }
+        .scrollIndicators(.never)
     }
 
     private var infoBanner: some View {
@@ -141,7 +169,7 @@ struct PluginsListView: View {
                         .strokeBorder(PoirotTheme.Colors.blue.opacity(0.1))
                 )
         )
-        .padding(.horizontal, PoirotTheme.Spacing.xxl)
+        .padding(.horizontal, PoirotTheme.Spacing.xxxl)
         .padding(.top, PoirotTheme.Spacing.lg)
         .padding(.bottom, PoirotTheme.Spacing.sm)
     }
@@ -180,6 +208,7 @@ struct PluginsListView: View {
 
 private struct PluginCard: View {
     let plugin: ClaudePlugin
+    var filterQuery: String = ""
     let onToggle: () -> Void
     let onRemove: () -> Void
     @State
@@ -192,12 +221,12 @@ private struct PluginCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: PoirotTheme.Spacing.sm) {
             HStack(spacing: PoirotTheme.Spacing.sm) {
-                Text(plugin.name)
+                Text(HighlightedText.fuzzyAttributedString(plugin.name, query: filterQuery))
                     .font(PoirotTheme.Typography.bodyMedium)
                     .foregroundStyle(PoirotTheme.Colors.textPrimary)
 
                 if !plugin.author.isEmpty {
-                    Text("by \(plugin.author)")
+                    Text(HighlightedText.fuzzyAttributedString("by \(plugin.author)", query: filterQuery))
                         .font(PoirotTheme.Typography.caption)
                         .foregroundStyle(PoirotTheme.Colors.textTertiary)
                 }

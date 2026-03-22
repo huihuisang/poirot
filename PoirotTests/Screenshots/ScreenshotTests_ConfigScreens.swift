@@ -25,7 +25,8 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testCommandsList",
             record: isRecording,
-            delay: 1
+            delay: 2,
+            colorScheme: .light
         )
     }
 
@@ -39,7 +40,7 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testSkillsList",
             record: isRecording,
-            delay: 1
+            delay: 2
         )
     }
 
@@ -53,7 +54,8 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testMCPServersList",
             record: isRecording,
-            delay: 1
+            delay: 2,
+            colorScheme: .light
         )
     }
 
@@ -67,7 +69,7 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testModelsList",
             record: isRecording,
-            delay: 1
+            delay: 2
         )
     }
 
@@ -81,7 +83,8 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testSubAgentsList",
             record: isRecording,
-            delay: 1
+            delay: 2,
+            colorScheme: .light
         )
     }
 
@@ -95,7 +98,23 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testPluginsList",
             record: isRecording,
-            delay: 1
+            delay: 2
+        )
+    }
+
+    @Test
+    func testHooksList() async throws {
+        let state = makeAppState(configProjectPath: "/Users/leonardocardoso/Dev/git/business/lumno")
+        try await snapshotView(
+            withEnvironment(
+                HooksListView(item: configItem(id: "hooks")),
+                state: state,
+                provider: provider
+            ),
+            size: ScreenshotSize.mainContent,
+            named: "testHooksList",
+            record: isRecording,
+            delay: 2
         )
     }
 
@@ -109,7 +128,8 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testOutputStylesList",
             record: isRecording,
-            delay: 1
+            delay: 2,
+            colorScheme: .light
         )
     }
 
@@ -127,7 +147,7 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testCommandsListWithProject",
             record: isRecording,
-            delay: 1
+            delay: 2
         )
     }
 
@@ -143,7 +163,7 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testSkillsListWithProject",
             record: isRecording,
-            delay: 1
+            delay: 2
         )
     }
 
@@ -159,7 +179,7 @@ struct ScreenshotTests_ConfigScreens {
             size: ScreenshotSize.mainContent,
             named: "testMCPServersListWithProject",
             record: isRecording,
-            delay: 1
+            delay: 2
         )
     }
 
@@ -171,9 +191,7 @@ struct ScreenshotTests_ConfigScreens {
             withEnvironment(
                 ConfigScreenHeader(
                     item: configItem(id: "commands"),
-                    dynamicCount: "12",
-                    screenID: "commands",
-                    showLayoutToggle: true
+                    dynamicCount: "12"
                 ),
                 provider: provider
             ),

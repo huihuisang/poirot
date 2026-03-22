@@ -1223,21 +1223,24 @@ enum ScreenshotData {
         message: try! AttributedString(markdown: "Session exported to **~/Desktop/session.md**"),
         icon: "checkmark.circle.fill",
         style: .success,
-        url: nil
+        url: nil,
+        animateIcon: false
     )
 
     static let errorToast = Toast(
         message: try! AttributedString(markdown: "Failed to parse session transcript"),
         icon: "xmark.circle.fill",
         style: .error,
-        url: nil
+        url: nil,
+        animateIcon: false
     )
 
     static let infoToast = Toast(
         message: try! AttributedString(markdown: "New version **1.2.0** available\nTap to download from GitHub"),
         icon: "arrow.down.circle.fill",
         style: .info,
-        url: URL(string: "https://github.com/LeonardoCardoso/poirot/releases")
+        url: URL(string: "https://github.com/LeonardoCardoso/poirot/releases"),
+        animateIcon: false
     )
     // swiftlint:enable force_try
 
@@ -1526,4 +1529,137 @@ enum ScreenshotData {
         }
     }
     """
+
+    // MARK: - Plans Mock Data
+
+    static let plans: [Plan] = [
+        Plan(
+            id: "plans-browser-enhancement",
+            name: "Plans Browser Enhancement",
+            content: """
+            # Plans Browser Enhancement
+
+            ## Context
+            Enhance Plans to be a first-class feature with delete, markdown/raw toggle, per-card actions, \
+            universal search integration, and local filter bars.
+
+            ## Steps
+            1. Enhance PlanDetailView with markdown/raw toggle
+            2. Add delete button on PlanCard
+            3. Add copy button on PlanCard
+            4. Add Plans to Universal Search
+            """,
+            fileURL: URL(fileURLWithPath: "/Users/leo/.claude/plans/plans-browser-enhancement.md")
+        ),
+        Plan(
+            id: "authentication-redesign",
+            name: "Authentication Redesign",
+            content: """
+            # Authentication Redesign
+
+            ## Overview
+            Migrate from session-based auth to JWT tokens with refresh token rotation.
+
+            ## Architecture
+            - Access tokens: 15min TTL
+            - Refresh tokens: 7 day TTL with rotation
+            - Token storage: Keychain on iOS, HttpOnly cookies on web
+            """,
+            fileURL: URL(fileURLWithPath: "/Users/leo/.claude/plans/authentication-redesign.md")
+        ),
+        Plan(
+            id: "performance-optimization",
+            name: "Performance Optimization",
+            content: """
+            # Performance Optimization Plan
+
+            ## Targets
+            - Reduce cold start time by 40%
+            - Improve scroll performance in session list
+            - Lazy load transcript blocks
+            """,
+            fileURL: URL(fileURLWithPath: "/Users/leo/.claude/plans/performance-optimization.md")
+        ),
+    ]
+
+    // MARK: - History Entries
+
+    static let historyEntries: [HistoryEntry] = [
+        HistoryEntry(
+            id: "1771598000-0",
+            display: "Add a debounce to the universal search so typing feels responsive",
+            pastedContents: [:],
+            timestamp: minutesAgo(10),
+            project: "/Users/leo/Dev/poirot"
+        ),
+        HistoryEntry(
+            id: "1771597000-1",
+            display: "Fix the sidebar icon alignment — they should be top-aligned with the label text",
+            pastedContents: [:],
+            timestamp: minutesAgo(45),
+            project: "/Users/leo/Dev/poirot"
+        ),
+        HistoryEntry(
+            id: "1771594000-2",
+            display: "Run the screenshot tests and regenerate all snapshots that show the sidebar",
+            pastedContents: [:],
+            timestamp: hoursAgo(2),
+            project: "/Users/leo/Dev/poirot"
+        ),
+        HistoryEntry(
+            id: "1771590000-3",
+            display: "Refactor the session loader to support pagination with lazy loading",
+            pastedContents: [:],
+            timestamp: hoursAgo(3),
+            project: "/Users/leo/Dev/reellette-ios"
+        ),
+        HistoryEntry(
+            id: "1771580000-4",
+            display: "Create a new MCP server config for the Perplexity search integration",
+            pastedContents: [:],
+            timestamp: hoursAgo(5),
+            project: "/Users/leo/Dev/ignio-web"
+        ),
+        HistoryEntry(
+            id: "1771570000-5",
+            display: "Write unit tests for the TranscriptParser covering edge cases with malformed JSONL",
+            pastedContents: [:],
+            timestamp: hoursAgo(8),
+            project: "/Users/leo/Dev/poirot"
+        ),
+        HistoryEntry(
+            id: "1771550000-6",
+            display: "Implement the cost breakdown chart with per-model token pricing",
+            pastedContents: [:],
+            timestamp: hoursAgo(14),
+            project: "/Users/leo/Dev/poirot"
+        ),
+        HistoryEntry(
+            id: "1771520000-7",
+            display: "Add dark mode support to the analytics export view",
+            pastedContents: [:],
+            timestamp: hoursAgo(22),
+            project: "/Users/leo/Dev/poirot"
+        ),
+        HistoryEntry(
+            id: "1771490000-8",
+            display: "Set up the CI pipeline with GitHub Actions for automated testing on every PR",
+            pastedContents: [:],
+            timestamp: hoursAgo(30),
+            project: "/Users/leo/Dev/swift-openapi"
+        ),
+        HistoryEntry(
+            id: "1771450000-9",
+            display: "Debug the file watcher — it stops firing events after the app is backgrounded for more than 5 minutes",
+            pastedContents: [:],
+            timestamp: hoursAgo(42),
+            project: "/Users/leo/Dev/poirot"
+        ),
+    ]
+
+    static func makeHistoryLoaderMock() -> HistoryLoadingMock {
+        let mock = HistoryLoadingMock()
+        mock.entries = historyEntries
+        return mock
+    }
 }

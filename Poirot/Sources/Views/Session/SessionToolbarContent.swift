@@ -1,14 +1,61 @@
 import SwiftUI
 
+// MARK: - Session Toolbar (matches ConfigLayoutToolbar pattern)
+
+struct SessionToolbar: ToolbarContent {
+    let session: Session
+
+    @Environment(AppState.self)
+    private var appState
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Spacer()
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            SessionToolbarFilterField()
+            SessionToolbarActions(session: session)
+            SessionToolbarFileHistory(session: session)
+            SessionToolbarExport(session: session)
+            SessionToolbarDebugLog(session: session)
+            SessionToolbarExpandCollapse()
+            SessionToolbarFilter()
+            SessionToolbarDelete(session: session)
+            SessionToolbarClose()
+        }
+    }
+}
+
+// MARK: - Filter Field (replaces search toggle)
+
+struct SessionToolbarFilterField: View {
+    @Environment(AppState.self)
+    private var appState
+
+    var body: some View {
+        @Bindable
+        var state = appState
+
+        ConfigFilterField(
+            searchQuery: $state.sessionSearchQuery,
+            placeholder: "Find in session\u{2026}"
+        )
+        .frame(width: 200)
+        .onChange(of: state.sessionSearchQuery) {
+            state.isSessionSearchActive = !state.sessionSearchQuery.isEmpty
+        }
+    }
+}
+
+// MARK: - Action Buttons
+
 struct SessionToolbarActions: View {
     let session: Session
 
     @State
     private var resumeTapped = false
-
     @State
     private var copyTapped = false
-
     @State
     private var revealTapped = false
 
@@ -19,7 +66,6 @@ struct SessionToolbarActions: View {
 
     @Environment(AppState.self)
     private var appState
-
     @Environment(\.provider)
     private var provider
 
@@ -67,10 +113,8 @@ struct SessionToolbarActions: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 TerminalLauncher.open(terminal)
             }
-            appState.showToast("Copied `\(command)`")
-        } else {
-            appState.showToast("Copied `\(command)`")
         }
+        appState.showToast("Copied `\(command)`")
 
         resumeTapped = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
@@ -102,6 +146,50 @@ struct SessionToolbarActions: View {
     }
 }
 
+// MARK: - Export
+
+struct SessionToolbarExport: View {
+    let session: Session
+
+    @State
+    private var showExportPopover = false
+
+    var body: some View {
+        Button {
+            showExportPopover.toggle()
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .help("Export Session")
+        .popover(isPresented: $showExportPopover, arrowEdge: .bottom) {
+            ExportOptionsView(session: session)
+        }
+    }
+}
+
+// MARK: - Expand / Collapse
+
+struct SessionToolbarExpandCollapse: View {
+    @Environment(AppState.self)
+    private var appState
+
+    var body: some View {
+        Button {
+            appState.allBlocksExpanded.toggle()
+        } label: {
+            Image(
+                systemName: appState.allBlocksExpanded
+                    ? "arrow.down.right.and.arrow.up.left"
+                    : "arrow.up.left.and.arrow.down.right"
+            )
+            .contentTransition(.symbolEffect(.replace))
+        }
+        .help(appState.allBlocksExpanded ? "Collapse All" : "Expand All")
+    }
+}
+
+// MARK: - Tool Filter Toggle
+
 struct SessionToolbarFilter: View {
     @Environment(AppState.self)
     private var appState
@@ -124,23 +212,7 @@ struct SessionToolbarFilter: View {
     }
 }
 
-struct SessionToolbarSearch: View {
-    @Environment(AppState.self)
-    private var appState
-
-    var body: some View {
-        Button {
-            appState.isSessionSearchActive.toggle()
-            if !appState.isSessionSearchActive {
-                appState.sessionSearchQuery = ""
-            }
-        } label: {
-            Image(systemName: appState.isSessionSearchActive ? "magnifyingglass.circle.fill" : "magnifyingglass")
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .help("Find in Session (⌘F)")
-    }
-}
+// MARK: - Delete
 
 struct SessionToolbarDelete: View {
     let session: Session
@@ -171,6 +243,72 @@ struct SessionToolbarDelete: View {
         }
     }
 }
+
+// MARK: - File History
+
+struct SessionToolbarFileHistory: View {
+    let session: Session
+
+    @Environment(AppState.self)
+    private var appState
+
+    @State
+    private var fileCount = 0
+
+    @State
+    private var iconBounce = 0
+
+    @Environment(\.fileHistoryLoader)
+    private var fileHistoryLoader
+
+    var body: some View {
+        Button {
+            appState.isShowingFileHistory.toggle()
+            iconBounce += 1
+        } label: {
+            Label {
+                if fileCount > 0 {
+                    Text("\(fileCount)")
+                }
+            } icon: {
+                Image(systemName: "clock.arrow.2.circlepath")
+                    .symbolRenderingMode(.hierarchical)
+                    .symbolEffect(.bounce, value: iconBounce)
+            }
+        }
+        .help("File History (\(fileCount) files)")
+        .disabled(fileCount == 0)
+        .task(id: session.id) {
+            let loader = fileHistoryLoader
+            let count = await Task.detached {
+                loader.loadFileHistory(
+                    for: session.id, projectPath: session.projectPath
+                ).count
+            }.value
+            fileCount = count
+        }
+    }
+}
+
+// MARK: - Debug Log
+
+struct SessionToolbarDebugLog: View {
+    let session: Session
+
+    @Environment(AppState.self)
+    private var appState
+
+    var body: some View {
+        Button {
+            appState.showDebugLogSessionId = session.id
+        } label: {
+            Image(systemName: "ladybug")
+        }
+        .help("View Debug Log")
+    }
+}
+
+// MARK: - Close
 
 struct SessionToolbarClose: View {
     @Environment(AppState.self)

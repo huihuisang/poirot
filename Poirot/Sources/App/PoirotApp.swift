@@ -3,6 +3,11 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let mode = AppearanceMode(rawValue: UserDefaults.standard.string(forKey: "appearanceMode") ?? "") ?? .auto
+        NSApp.appearance = mode.appearance
+    }
+
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         menu.addItem(withTitle: "New Window", action: #selector(newWindow(_:)), keyEquivalent: "")
@@ -12,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc
     private func newWindow(_ sender: Any?) {
         NSApp.activate()
-        NSApp.sendAction(Selector(("newWindowForTab:")), to: nil, from: nil)
+        NSApp.sendAction(#selector(NSResponder.newWindowForTab(_:)), to: nil, from: nil)
     }
 }
 
@@ -24,7 +29,6 @@ struct PoirotApp: App {
     private var appState = AppState()
     @Environment(\.openWindow)
     private var openWindow
-
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -37,6 +41,33 @@ struct PoirotApp: App {
             CommandGroup(replacing: .appInfo) {
                 Button("About Poirot") {
                     openWindow(id: "about")
+                }
+
+                Divider()
+
+                Button("Check for Updates…") {
+                    Task {
+                        appState.showToast(
+                            "Checking for updates…",
+                            icon: "arrow.triangle.2.circlepath",
+                            style: .info,
+                            animateIcon: true
+                        )
+                        if let release = await UpdateChecker.checkForUpdate() {
+                            appState.showToast(
+                                "New version available: **\(release.tagName)**\nTap to download from GitHub",
+                                icon: "arrow.down.circle.fill",
+                                style: .info,
+                                url: URL(string: release.htmlURL)
+                            )
+                        } else {
+                            appState.showToast(
+                                "You're up to date! Running **v\(Bundle.main.appVersion)**",
+                                icon: "checkmark.circle.fill",
+                                style: .success
+                            )
+                        }
+                    }
                 }
             }
             CommandGroup(after: .textFormatting) {
@@ -52,6 +83,10 @@ struct PoirotApp: App {
                     openWindow(id: "help")
                 }
                 .keyboardShortcut("?", modifiers: .command)
+
+                Button("Keyboard Shortcuts") {
+                    appState.isShortcutHelpPresented = true
+                }
             }
         }
 

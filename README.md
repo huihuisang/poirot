@@ -52,89 +52,36 @@ Named after **Hercule Poirot**, Agatha Christie's legendary detective. Because e
 
 ## Features
 
-### Session History Browser
-Browse all your Claude Code sessions grouped by project. Timestamps, token counts, model info — everything at a glance in a sidebar you'd expect from a native macOS app.
-
 <p align="center">
-  <img src="assets/showcase/09-session-browser.png" alt="Session History Browser" width="720" />
+  <img src="assets/showcase/02-analytics.png" alt="Session Analytics" width="720" />
 </p>
 
-### Rich Conversation View
-Full conversation timeline with user messages, assistant responses, and collapsible tool blocks. Markdown rendering with syntax highlighting, because raw JSONL is not fun to read.
-
 <p align="center">
-  <img src="assets/showcase/03-conversation.png" alt="Rich Conversation View" width="720" />
+  <img src="assets/showcase/04-conversation.png" alt="Rich Conversation View" width="720" />
 </p>
 
-### Tool Block Display
-Every tool invocation — Read, Edit, Bash, Write — rendered with its name, icon, file path, and result. Collapsible, copyable, and with smart truncation for long outputs.
+- **Session Analytics** — Token consumption, cost breakdowns, model distribution, and session trends
+- **Session History Browser** — Sessions grouped by project with timestamps, model info, and token counts
+- **Rich Conversation View** — Full timeline with markdown rendering, syntax highlighting, and collapsible tool blocks
+- **Tool Block Display** — Every tool invocation rendered with name, icon, file path, and result
+- **Extended Thinking** — Collapsible thinking blocks with distinct purple accent
+- **Fuzzy Search (&#x2318;K)** — Spotlight-style search across sessions, commands, file paths, and more
+- **Slash Commands** — Browse global and per-project commands with descriptions and permissions
+- **Skills** — Explore reusable skill modules with parsed frontmatter
+- **MCP Servers** — Live connection status indicators with color-coded SF Symbols
+- **Models** — Browse available models and their capabilities
+- **Sub-agents** — Create, edit, and manage custom sub-agents with tools, model, memory, and system prompt
+- **Plugins** — View installed plugins and their metadata
+- **Output Styles** — Preview output formatting styles
+- **Hooks** — Event hooks grouped by type with matcher patterns and handler details
+- **Session TODOs** — Per-session todo lists with status tracking
+- **Plans** — Browse `~/.claude/plans/` with rendered markdown and file watching
+- **Debug Log Viewer** — Color-coded log levels, search, filtering, and paginated loading
+- **Prompt History** — Browse input history with date grouping and project filtering
+- **AI Session Summaries** — Goal, outcome, helpfulness, and friction indicators from facets
+- **Memory** — Per-project auto-memory files with rendered markdown and live watching
 
-<p align="center">
-  <img src="assets/showcase/04-tool-blocks.png" alt="Tool Blocks" width="720" />
-</p>
-
-### Extended Thinking
-See Claude's thinking process with collapsible thinking blocks, styled with a distinct purple accent so you can tell reasoning from response.
-
-<p align="center">
-  <img src="assets/showcase/05-thinking.png" alt="Extended Thinking" width="720" />
-</p>
-
-### Fuzzy Search (&#x2318;K)
-Search across all sessions, commands, and file paths. A spotlight-style overlay that gets you where you need to go.
-
-<p align="center">
-  <img src="assets/showcase/08-search.png" alt="Fuzzy Search" width="720" />
-</p>
-
-### Slash Commands
-Browse and inspect all your slash commands — global ones from `~/.claude/commands/` and project-scoped ones from `.claude/commands/`. See descriptions, arguments, model assignments, and tool permissions at a glance.
-
-<p align="center">
-  <img src="assets/showcase/10-commands.png" alt="Slash Commands" width="720" />
-</p>
-
-### Skills
-Explore reusable skill modules with their full documentation. Skills are rendered with markdown frontmatter parsed into structured cards showing descriptions and references.
-
-<p align="center">
-  <img src="assets/showcase/12-skills.png" alt="Skills" width="720" />
-</p>
-
-### MCP Servers
-See all configured Model Context Protocol servers with their connection details, tool counts, and scope badges. Quickly check which servers are available globally vs. per-project.
-
-<p align="center">
-  <img src="assets/showcase/11-mcp-servers.png" alt="MCP Servers" width="720" />
-</p>
-
-### Models
-Browse all available models with their capabilities. See which model is set as the default and compare options across providers.
-
-<p align="center">
-  <img src="assets/showcase/14-models.png" alt="Models" width="720" />
-</p>
-
-### Sub-agents
-Inspect built-in sub-agent configurations. See agent names, descriptions, and how they're wired into your workflow.
-
-<p align="center">
-  <img src="assets/showcase/15-sub-agents.png" alt="Sub-agents" width="720" />
-</p>
-
-### Plugins
-View all installed Claude plugins with their metadata. Check what's active, discover available extensions, and see plugin details at a glance.
-
-<p align="center">
-  <img src="assets/showcase/16-plugins.png" alt="Plugins" width="720" />
-</p>
-
-### Output Styles
-Browse and preview output formatting styles. See how each style shapes Claude's responses and which one is currently active.
-
-<p align="center">
-  <img src="assets/showcase/17-output-styles.png" alt="Output Styles" width="720" />
-</p>
+> **See all features with screenshots in the [Feature Showcase](SHOWCASE.md).**
 
 ---
 
@@ -142,6 +89,7 @@ Browse and preview output formatting styles. See how each style shapes Claude's 
 
 | Category | Feature | Description |
 |----------|---------|-------------|
+| **Analytics** | Session Analytics Dashboard | Token consumption, cost breakdowns, model distribution, and session trends |
 | **Sessions** | JSONL Transcript Parser | Parses `~/.claude/projects/` transcripts into structured models |
 | | Session History Browser | Sessions grouped by project with timestamps, model, token counts |
 | | Real-time File Watching | Auto-updates via GCD dispatch sources with 1s debounce |
@@ -152,22 +100,44 @@ Browse and preview output formatting styles. See how each style shapes Claude's 
 | | Bash Output Renderer | Terminal command output with monospace styling and exit status |
 | | Extended Thinking | Collapsible thinking blocks with distinct purple accent |
 | | Tool Blocks | Every tool invocation rendered with name, icon, file path, and result |
-| | In-Session Search | ⌘F to search within the current conversation |
-| **Search** | Universal Search (⌘K) | Fuzzy search across sessions, commands, skills, MCP servers, plugins, output styles, models, and sub-agents |
+| | In-Session Search | &#x2318;F to search within the current conversation |
+| **Diagnostics** | Debug Log Viewer | Parse and browse `~/.claude/debug/` logs with color-coded levels, search, filtering, and paginated lazy loading |
+| | Auto-scroll to Error | Opens directly at the first error entry for quick triage |
+| | Relative Timestamps | Toggle between absolute (HH:mm:ss.SSS) and relative (+offset) time display |
+| **History** | Prompt History Browser | Browse `~/.claude/history.jsonl` with date grouping, project filtering, full-text search, and copy-to-clipboard |
+| **AI Summaries** | Session Facets | AI-generated analysis (goal, outcome, helpfulness) from `~/.claude/usage-data/facets/` |
+| | Outcome & Helpfulness Badges | Color-coded badges for success/partial/failure and helpfulness rating |
+| | Goal Categories | Tag chips showing categorized session goals with counts |
+| | Friction Indicators | Subtle indicators for tool failures, misunderstandings, and other friction |
+| | Live File Watching | Auto-updates when new facets appear via GCD dispatch sources |
+| **Search** | Universal Search (&#x2318;K) | Fuzzy search across sessions, AI summaries, history, commands, skills, memory, MCP servers, plugins, output styles, models, sub-agents, plans, TODOs, and debug logs |
 | | Grouped Results | Results organized by category with counts |
 | | Quick Access | Empty state shows shortcuts, counts, and recent sessions |
 | **Configuration** | Commands | Browse and manage slash commands (global and per-project) |
 | | Skills | Browse and manage reusable skill modules |
-| | MCP Servers | Browse configured Model Context Protocol servers |
+| | MCP Servers | Browse configured Model Context Protocol servers with live connection status |
 | | Models | Browse available models and capabilities |
-| | Sub-agents | Browse custom sub-agent definitions |
+| | Sub-agents | Create, edit, duplicate, and delete custom sub-agents with categorized tool selection and memory configuration |
 | | Plugins | Browse installed plugins |
 | | Output Styles | Browse and manage output style configurations |
+| | Hooks | View and manage event hooks grouped by type with matcher patterns and handler details |
+| | TODOs | Browse per-session todo lists with status tracking and session navigation |
+| | Plans | Browse `~/.claude/plans/` markdown files with rendered/raw toggle, copy, delete, and file watching |
+| | Memory | Browse per-project auto-memory files with rendered markdown, project filtering, and file watching |
 | | Grid & List Views | Toggle between card grid and compact list layouts |
 | | Scope Badges | Visual distinction between Global and Project-scoped items |
 | **Integrations** | IDE/Editor | One-click open files in VS Code, Cursor, Xcode, or Zed |
 | | Terminal Selection | Pick your terminal: Terminal, iTerm2, Warp, Ghostty, Kitty, Alacritty |
 | | Quick Command Re-run | Click any Bash command to copy or open in your terminal |
+| **Export** | Session Export | Export sessions as Markdown or PDF with configurable options |
+| | Copy Markdown | One-click copy of session content as Markdown to clipboard |
+| | Share Sheet | Native macOS share sheet integration for exported files |
+| **Sub-agents** | Custom Agent Creation | Full form with name, description, system prompt, model, color, categorized tools, and persistent memory |
+| | Auto File Naming | File path auto-derived from agent name (lowercase, dashes); file renamed on edit |
+| | Tool Categories | Select tools by category (Read-only, Edit, Execution, Other) or individually |
+| | Agent Memory | Configure persistent memory per agent (global or none) |
+| | Import/Export | Share agents as JSON files between users |
+| | Duplicate | Clone built-in or custom agents as starting points |
 | **Navigation** | Font Scaling | ⌘+ / ⌘- / ⌘0 to zoom the entire UI |
 | | Keyboard Shortcuts | Full keyboard navigation with discoverable shortcut hints |
 | | Help Book (⌘?) | Keyboard reference, feature overview, and getting started guide |
@@ -241,10 +211,14 @@ Poirot/Sources/
 └── Views/         # SwiftUI views organized by feature
     ├── Components/    # Sidebar, StatusBar, Shimmer
     ├── Configuration/ # Config dashboard
+    ├── History/       # Prompt history browser
     ├── Home/          # Welcome / empty state
+    ├── Memory/        # Memory file browser
     ├── Project/       # Project sessions list
+    ├── Plans/         # Plans browser
     ├── Search/        # &#x2318;K overlay
-    └── Session/       # Conversation detail, tool blocks, thinking
+    ├── Session/       # Conversation detail, tool blocks, thinking
+    └── Todos/         # Per-session todo overview
 ```
 
 ### Tech Stack
@@ -348,14 +322,6 @@ MIT — see [LICENSE](LICENSE) for details.
 No tracking. No analytics. Analyze the code yourself, or ask your Claude to do it. :)
 
 Made with coffee and Claude Code in a weekend.
-
-<p align="center">
-  <a href="https://youtu.be/JLvNSRZrxdo">
-    <img src="https://img.youtube.com/vi/JLvNSRZrxdo/maxresdefault.jpg" alt="Poirot Demo Video" width="720" />
-  </a>
-  <br/>
-  <sub>Click to watch the demo on YouTube</sub>
-</p>
 
 <p align="center">
   <sub>If you find Poirot useful, consider giving it a star. It helps others discover the project.</sub>

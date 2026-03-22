@@ -15,14 +15,23 @@ struct SessionDetailView: View {
     @State
     private var isLoadingMore = false
 
+    @State
+    private var todos: [SessionTodo] = []
+
+    @State
+    private var facets: SessionFacets?
+
     @Environment(AppState.self)
     private var appState
 
     @Environment(\.provider)
     private var provider
 
-    @FocusState
-    private var isSearchFocused: Bool
+    @Environment(\.todoLoader)
+    private var todoLoader
+
+    @Environment(\.facetsLoader)
+    private var facetsLoader
 
     private var filteredMessages: [Message] {
         var messages = session.messages
@@ -71,134 +80,109 @@ struct SessionDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             sessionHeader
-            if appState.isSessionSearchActive {
-                sessionSearchBar
-            }
             if appState.isToolFilterActive {
                 toolFilterBar
             }
+            if !todos.isEmpty {
+                SessionTodosView(todos: todos)
+                    .padding(.horizontal, PoirotTheme.Spacing.md)
+                    .padding(.top, PoirotTheme.Spacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            if let facets {
+                SessionFacetsCard(facets: facets)
+                    .padding(.horizontal, PoirotTheme.Spacing.md)
+                    .padding(.top, PoirotTheme.Spacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             messagesList
         }
-        .animation(.easeInOut(duration: 0.2), value: appState.isSessionSearchActive)
         .animation(.easeInOut(duration: 0.2), value: appState.isToolFilterActive)
+        .animation(.easeInOut(duration: 0.2), value: todos.isEmpty)
+        .animation(.easeInOut(duration: 0.2), value: facets != nil)
         .background(PoirotTheme.Colors.bgApp)
         .onChange(of: session.id) {
             visibleCount = Self.pageSize
+            loadTodos()
+            loadFacets()
         }
-        .onChange(of: appState.isSessionSearchActive) {
-            if appState.isSessionSearchActive {
-                isSearchFocused = true
-            }
+        .task {
+            loadTodos()
+            loadFacets()
         }
+    }
+
+    private func loadTodos() {
+        let sessionId = session.id
+        let loader = todoLoader
+        todos = loader.loadTodos(for: sessionId)
+    }
+
+    private func loadFacets() {
+        let sessionId = session.id
+        let loader = facetsLoader
+        facets = loader.loadFacets(for: sessionId)
     }
 
     // MARK: - Header
 
     private var sessionHeader: some View {
         VStack(alignment: .leading, spacing: PoirotTheme.Spacing.sm) {
-            Text(session.title)
-                .font(PoirotTheme.Typography.subheading)
-                .foregroundStyle(PoirotTheme.Colors.textPrimary)
-                .lineLimit(2)
+            HStack(spacing: PoirotTheme.Spacing.md) {
+                Image(systemName: "rectangle.stack.fill")
+                    .font(PoirotTheme.Typography.headingSmall)
+                    .foregroundStyle(PoirotTheme.Colors.accent)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: PoirotTheme.Radius.md)
+                            .fill(PoirotTheme.Colors.accent.opacity(0.15))
+                    )
 
-            HStack(spacing: PoirotTheme.Spacing.sm) {
-                if let model = session.model {
-                    Text(model)
-                        .font(PoirotTheme.Typography.tiny)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(PoirotTheme.Colors.accent)
-                        .padding(.horizontal, PoirotTheme.Spacing.sm)
-                        .padding(.vertical, PoirotTheme.Spacing.xxs)
-                        .background(
-                            RoundedRectangle(cornerRadius: PoirotTheme.Radius.xs)
-                                .fill(PoirotTheme.Colors.accentDim)
-                        )
+                VStack(alignment: .leading, spacing: PoirotTheme.Spacing.xxs) {
+                    Text(session.title)
+                        .font(PoirotTheme.Typography.heading)
+                        .foregroundStyle(PoirotTheme.Colors.textPrimary)
+                        .lineLimit(2)
+
+                    HStack(spacing: PoirotTheme.Spacing.xs) {
+                        if let model = session.model {
+                            Text(model)
+                                .font(PoirotTheme.Typography.tiny)
+                                .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                                .padding(.horizontal, PoirotTheme.Spacing.sm)
+                                .padding(.vertical, PoirotTheme.Spacing.xxs)
+                                .background(
+                                    Capsule().fill(PoirotTheme.Colors.bgElevated)
+                                )
+                        }
+
+                        if session.totalTokens > 0 {
+                            Text("\(session.totalTokens.formattedTokens) tokens")
+                                .font(PoirotTheme.Typography.tiny)
+                                .foregroundStyle(PoirotTheme.Colors.textTertiary)
+                                .padding(.horizontal, PoirotTheme.Spacing.sm)
+                                .padding(.vertical, PoirotTheme.Spacing.xxs)
+                                .background(
+                                    Capsule().fill(PoirotTheme.Colors.bgElevated)
+                                )
+                        }
+                    }
                 }
-
-                if session.totalTokens > 0 {
-                    Text("\(session.totalTokens.formattedTokens) tokens")
-                        .font(PoirotTheme.Typography.tiny)
-                        .foregroundStyle(PoirotTheme.Colors.blue)
-                        .padding(.horizontal, PoirotTheme.Spacing.sm)
-                        .padding(.vertical, PoirotTheme.Spacing.xxs)
-                        .background(
-                            RoundedRectangle(cornerRadius: PoirotTheme.Radius.xs)
-                                .fill(PoirotTheme.Colors.blue.opacity(0.1))
-                        )
-                }
-
-                Text("\(session.timeAgo) · \(session.turnCount) \(session.turnCount == 1 ? "turn" : "turns")")
-                    .font(PoirotTheme.Typography.small)
-                    .foregroundStyle(PoirotTheme.Colors.textTertiary)
 
                 Spacer()
             }
-        }
-        .padding(.horizontal, PoirotTheme.Spacing.lg)
-        .padding(.vertical, PoirotTheme.Spacing.md)
-        .background {
-            GlassBackground(in: .rect(cornerRadius: PoirotTheme.Radius.md))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: PoirotTheme.Radius.md)
-                .stroke(PoirotTheme.Colors.border.opacity(0.3), lineWidth: 0.5)
-        }
-        .padding(.horizontal, PoirotTheme.Spacing.md)
-        .padding(.top, PoirotTheme.Spacing.sm)
-    }
 
-    // MARK: - Search Bar
-
-    private var sessionSearchBar: some View {
-        @Bindable
-        var state = appState
-
-        return HStack(spacing: PoirotTheme.Spacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .font(PoirotTheme.Typography.small)
-                .foregroundStyle(PoirotTheme.Colors.textTertiary)
-
-            TextField("Find in session...", text: $state.sessionSearchQuery)
-                .textFieldStyle(.plain)
-                .font(PoirotTheme.Typography.caption)
-                .foregroundStyle(PoirotTheme.Colors.textPrimary)
-                .focused($isSearchFocused)
-
-            if !appState.sessionSearchQuery.isEmpty {
-                let matched = filteredMessages.count
-                let total = session.messages.count
-                Text("\(matched)/\(total)")
-                    .font(PoirotTheme.Typography.tiny)
-                    .foregroundStyle(PoirotTheme.Colors.textTertiary)
-                    .contentTransition(.numericText())
-            }
-
-            Button {
-                appState.isSessionSearchActive = false
-                appState.sessionSearchQuery = ""
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(PoirotTheme.Typography.small)
-                    .foregroundStyle(PoirotTheme.Colors.textTertiary)
-            }
-            .buttonStyle(.plain)
+            Text(
+                "\(session.projectName) · \(session.timeAgo) · \(session.turnCount) \(session.turnCount == 1 ? "turn" : "turns")"
+            )
+            .font(PoirotTheme.Typography.caption)
+            .foregroundStyle(PoirotTheme.Colors.textSecondary)
         }
-        .padding(.horizontal, PoirotTheme.Spacing.lg)
-        .padding(.vertical, PoirotTheme.Spacing.sm)
-        .background {
-            GlassBackground(in: .rect(cornerRadius: PoirotTheme.Radius.sm))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: PoirotTheme.Radius.sm)
-                .stroke(PoirotTheme.Colors.border.opacity(0.3), lineWidth: 0.5)
-        }
-        .padding(.horizontal, PoirotTheme.Spacing.md)
-        .padding(.top, PoirotTheme.Spacing.xs)
-        .transition(.move(edge: .top).combined(with: .opacity))
-        .onKeyPress(.escape) {
-            appState.isSessionSearchActive = false
-            appState.sessionSearchQuery = ""
-            return .handled
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, PoirotTheme.Spacing.xxxl)
+        .padding(.vertical, PoirotTheme.Spacing.xl)
+        .overlay(alignment: .bottom) {
+            Divider().opacity(0.3)
         }
     }
 
@@ -278,6 +262,10 @@ struct SessionDetailView: View {
                     if messages.isEmpty {
                         emptyState
                     } else {
+                        Color.clear
+                            .frame(height: 1)
+                            .id("session-top")
+
                         let bubbleWidth = (geo.size.width - PoirotTheme.Spacing.xxxl * 2) * 0.75
                         let visible = Array(messages.prefix(visibleCount).enumerated())
                         let hasMore = visibleCount < messages.count
@@ -508,6 +496,7 @@ private struct UserBubble: View {
             )
             .bubbleActions(
                 text: copyableText(parsed: parsed),
+                message: message,
                 isFormatted: $isFormatted,
                 showActions: !parsed.userText.isEmpty
             )
@@ -794,6 +783,7 @@ private struct AssistantBubble: View {
                         }
                         AssistantTextBubble(
                             text: text,
+                            message: message,
                             isFirst: index == 0,
                             turnNumber: turnNumber,
                             timestamp: message.timestamp,
@@ -855,6 +845,7 @@ private struct AssistantBubble: View {
 
 private struct AssistantTextBubble: View {
     let text: String
+    let message: Message
     let isFirst: Bool
     let turnNumber: Int
     let timestamp: Date
@@ -915,7 +906,7 @@ private struct AssistantTextBubble: View {
                         .stroke(PoirotTheme.Colors.border)
                 )
         )
-        .bubbleActions(text: text, isFormatted: $isFormatted)
+        .bubbleActions(text: text, message: message, isFormatted: $isFormatted)
     }
 }
 
@@ -923,11 +914,14 @@ private struct AssistantTextBubble: View {
 
 private struct BubbleActionButtons: View {
     let text: String
+    var message: Message?
     @Binding
     var isFormatted: Bool
 
     @State
     private var copied = false
+    @State
+    private var markdownCopied = false
 
     var body: some View {
         HStack(spacing: PoirotTheme.Spacing.xs) {
@@ -940,7 +934,25 @@ private struct BubbleActionButtons: View {
                 isFormatted.toggle()
             }
 
-            // Copy
+            // Copy as Markdown
+            if let message {
+                BubbleIconButton(
+                    icon: markdownCopied ? "checkmark" : "doc.text",
+                    isActive: markdownCopied,
+                    activeColor: PoirotTheme.Colors.green,
+                    help: "Copy as Markdown"
+                ) {
+                    let md = SessionExporter.messageToMarkdown(message)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(md, forType: .string)
+                    markdownCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        markdownCopied = false
+                    }
+                }
+            }
+
+            // Copy raw text
             BubbleIconButton(
                 icon: copied ? "checkmark" : "doc.on.doc",
                 isActive: copied,
@@ -961,6 +973,7 @@ private struct BubbleIconButton: View {
     let icon: String
     let isActive: Bool
     let activeColor: Color
+    var help: String? = nil
     let action: () -> Void
 
     @State
@@ -983,6 +996,7 @@ private struct BubbleIconButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .help(help ?? "")
         .onHover { isHovered = $0 }
         .scaleEffect(isHovered ? 1.1 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isActive)
@@ -990,13 +1004,19 @@ private struct BubbleIconButton: View {
 }
 
 private extension View {
-    func bubbleActions(text: String, isFormatted: Binding<Bool>, showActions: Bool = true) -> some View {
-        BubbleActionsWrapper(text: text, showActions: showActions, isFormatted: isFormatted) { self }
+    func bubbleActions(
+        text: String,
+        message: Message? = nil,
+        isFormatted: Binding<Bool>,
+        showActions: Bool = true
+    ) -> some View {
+        BubbleActionsWrapper(text: text, message: message, showActions: showActions, isFormatted: isFormatted) { self }
     }
 }
 
 private struct BubbleActionsWrapper<Content: View>: View {
     let text: String
+    var message: Message?
     let showActions: Bool
     @Binding
     var isFormatted: Bool
@@ -1018,7 +1038,7 @@ private struct BubbleActionsWrapper<Content: View>: View {
             content
                 .onHover { isContentHovered = $0 }
                 .overlay(alignment: .topTrailing) {
-                    BubbleActionButtons(text: text, isFormatted: $isFormatted)
+                    BubbleActionButtons(text: text, message: message, isFormatted: $isFormatted)
                         .opacity(buttonOpacity)
                         .onHover { isButtonsHovered = $0 }
                         .animation(.easeInOut(duration: 0.15), value: buttonOpacity)

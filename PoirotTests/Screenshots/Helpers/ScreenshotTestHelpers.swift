@@ -29,17 +29,19 @@ func snapshotView<V: View>(
     _ view: V,
     size: CGSize,
     named name: String,
-    record isRecording: Bool = false
+    record isRecording: Bool = false,
+    colorScheme: ColorScheme = .dark
 ) {
     let hostingView = NSHostingController(
         rootView: view
+            .preferredColorScheme(colorScheme)
             .frame(width: size.width, height: size.height)
     )
     hostingView.view.frame = CGRect(origin: .zero, size: size)
 
     assertSnapshot(
         of: hostingView,
-        as: .image(size: size),
+        as: .image(precision: 0.99, size: size),
         named: name,
         record: isRecording
     )
@@ -47,38 +49,73 @@ func snapshotView<V: View>(
 
 /// Async snapshot — attaches the view to a window and uses Task.sleep to yield the MainActor,
 /// allowing SwiftUI .task / .onAppear async modifiers to execute before capturing.
+/// - `scrollFraction`: scroll the first NSScrollView to this fraction (0 = top, 1 = bottom).
 func snapshotView<V: View>(
     _ view: V,
     size: CGSize,
     named name: String,
     record isRecording: Bool = false,
-    delay: TimeInterval
+    delay: TimeInterval,
+    colorScheme: ColorScheme = .dark,
+    scrollFraction: CGFloat? = nil,
+    precision: Float = 0.99
 ) async throws {
     let hostingView = NSHostingController(
         rootView: view
+            .preferredColorScheme(colorScheme)
+            .environment(\.disableAnimations, true)
             .frame(width: size.width, height: size.height)
     )
     hostingView.view.frame = CGRect(origin: .zero, size: size)
 
-    // Attach to a real window so .onAppear / .task modifiers fire
     let window = NSWindow(
         contentRect: CGRect(origin: .zero, size: size),
         styleMask: [.borderless],
         backing: .buffered,
         defer: false
     )
+    window.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
     window.contentViewController = hostingView
     window.makeKeyAndOrderFront(nil)
 
-    // Yield the MainActor so SwiftUI .task modifiers can execute
     try await Task.sleep(for: .seconds(delay))
+
+    if let fraction = scrollFraction,
+       let scrollView = findScrollView(in: hostingView.view) {
+        let docHeight = scrollView.documentView?.frame.height ?? 0
+        let clipHeight = scrollView.contentView.bounds.height
+        let maxY = max(0, docHeight - clipHeight)
+        let targetY = maxY * fraction
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: targetY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        // Allow layout pass after scroll
+        try await Task.sleep(for: .milliseconds(200))
+    }
 
     assertSnapshot(
         of: hostingView,
-        as: .image(size: size),
+        as: .image(precision: precision, size: size),
         named: name,
         record: isRecording
     )
+}
+
+/// Finds the most scrollable NSScrollView (largest scrollable range) in a view hierarchy.
+/// This avoids picking the sidebar's scroll view when the main content is the intended target.
+private func findScrollView(in view: NSView) -> NSScrollView? {
+    var all: [NSScrollView] = []
+    collectScrollViews(in: view, into: &all)
+    // Pick the scroll view with the most scrollable content
+    return all.max { a, b in
+        let aRange = (a.documentView?.frame.height ?? 0) - a.contentView.bounds.height
+        let bRange = (b.documentView?.frame.height ?? 0) - b.contentView.bounds.height
+        return aRange < bRange
+    }
+}
+
+private func collectScrollViews(in view: NSView, into result: inout [NSScrollView]) {
+    if let sv = view as? NSScrollView { result.append(sv) }
+    for subview in view.subviews { collectScrollViews(in: subview, into: &result) }
 }
 
 // MARK: - App State Factory
@@ -120,12 +157,17 @@ func makeAppState(
 func withEnvironment<V: View>(
     _ view: V,
     state: AppState? = nil,
-    provider: any ProviderDescribing = ClaudeCodeProvider()
+    provider: any ProviderDescribing = ClaudeCodeProvider(),
+    historyLoader: (any HistoryLoading)? = nil
 ) -> some View {
     let appState = state ?? makeAppState()
-    return view
+    var result = view
         .environment(appState)
         .environment(\.provider, provider)
+    if let historyLoader {
+        return AnyView(result.environment(\.historyLoader, historyLoader))
+    }
+    return AnyView(result)
 }
 
 // MARK: - Composite App View (Sidebar + Detail)
@@ -136,16 +178,23 @@ func withEnvironment<V: View>(
 func compositeAppView<Detail: View>(
     state: AppState? = nil,
     provider: any ProviderDescribing = ClaudeCodeProvider(),
+    historyLoader: (any HistoryLoading)? = nil,
     @ViewBuilder detail: () -> Detail
 ) -> some View {
     let appState = state ?? makeAppState()
-    return HStack(spacing: 0) {
+    let view = HStack(spacing: 0) {
         SidebarView()
             .frame(width: 260)
+            .background(PoirotTheme.Colors.bgSidebar)
         Divider()
         detail()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .environment(appState)
     .environment(\.provider, provider)
+
+    if let historyLoader {
+        return AnyView(view.environment(\.historyLoader, historyLoader))
+    }
+    return AnyView(view)
 }

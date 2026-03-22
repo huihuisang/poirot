@@ -16,7 +16,7 @@ struct ScreenshotTests_Windows {
             size: ScreenshotSize.settings,
             named: "testSettingsWindow",
             record: isRecording,
-            delay: 1
+            delay: 2
         )
     }
 
@@ -29,7 +29,8 @@ struct ScreenshotTests_Windows {
             size: ScreenshotSize.onboarding,
             named: "testOnboardingWindow",
             record: isRecording,
-            delay: 0.5
+            delay: 0.5,
+            colorScheme: .light
         )
     }
 

@@ -7,6 +7,7 @@ struct Toast: Identifiable, Equatable {
     let icon: String?
     let style: ToastStyle
     let url: URL?
+    let animateIcon: Bool
 
     enum ToastStyle {
         case success, error, info
@@ -48,6 +49,7 @@ struct ConfigDetailInfo: Equatable {
 
 enum NavigationEntry: Equatable {
     case session(Session)
+    case configList(navItemID: String)
     case configDetail(navItemID: String, detail: ConfigDetailInfo)
 }
 
@@ -89,6 +91,7 @@ final class AppState {
 
     var selectedSession: Session? {
         didSet {
+            isShowingFileHistory = false
             guard !isNavigatingHistory else { return }
             // Push to history when user navigates to a new session
             if let session = selectedSession {
@@ -149,6 +152,12 @@ final class AppState {
         if navigationHistoryIndex < navigationHistory.count - 1 {
             navigationHistory.removeSubrange((navigationHistoryIndex + 1)...)
         }
+        // Push a list entry first so the back button has somewhere to go
+        let currentEntry = navigationHistoryIndex >= 0 ? navigationHistory[navigationHistoryIndex] : nil
+        if currentEntry != .configList(navItemID: navItemID) {
+            navigationHistory.append(.configList(navItemID: navItemID))
+            navigationHistoryIndex = navigationHistory.count - 1
+        }
         let entry = NavigationEntry.configDetail(navItemID: navItemID, detail: detail)
         navigationHistory.append(entry)
         navigationHistoryIndex = navigationHistory.count - 1
@@ -160,6 +169,12 @@ final class AppState {
             selectedNav = .sessions
             activeConfigDetail = nil
             selectedSession = session
+        case let .configList(navItemID):
+            if let navItem = NavigationItem.allItems.first(where: { $0.id == navItemID }) {
+                selectedNav = navItem
+            }
+            selectedSession = nil
+            activeConfigDetail = nil
         case let .configDetail(navItemID, detail):
             if let navItem = NavigationItem.allItems.first(where: { $0.id == navItemID }) {
                 selectedNav = navItem
@@ -171,8 +186,11 @@ final class AppState {
 
     var toastQueue: [Toast] = []
     var isSearchPresented: Bool = false
+    var isShortcutHelpPresented: Bool = false
+    var sidebarKeyboardIndex: Int = -1
     var sessionSearchQuery: String = ""
     var isSessionSearchActive: Bool = false
+    var isShowingFileHistory: Bool = false
     var isToolFilterActive: Bool = false
     var activeToolFilters: Set<String> = []
     var projects: [Project] = []
@@ -192,6 +210,8 @@ final class AppState {
     }
 
     var activeConfigDetail: ConfigDetailInfo?
+    var configDetailFormatted: Bool = true
+    var showDebugLogSessionId: String?
     var configAddTrigger = UUID()
     var sidebarCounts: [String: Int] = [:]
 
@@ -223,12 +243,20 @@ final class AppState {
         supportedModelsCount: Int,
         projectPath: String? = nil
     ) -> [String: Int] {
-        [
+        let todoCount = TodoLoader().loadAllTodos().values.reduce(0) { $0 + $1.count }
+        let historyCount = HistoryLoader().entryCount()
+
+        return [
+            "todos": todoCount,
+            "history": historyCount,
             "commands": ClaudeConfigLoader.loadCommands(projectPath: projectPath).count,
             "skills": ClaudeConfigLoader.loadSkills(projectPath: projectPath).count,
+            "plans": ClaudeConfigLoader.loadPlans().count,
+            "memory": ClaudeConfigLoader.totalMemoryFileCount(),
             "mcpServers": ClaudeConfigLoader.loadMCPServers(projectPath: projectPath).count,
             "models": supportedModelsCount,
-            "subAgents": 4, // SubAgent.builtIn is a fixed set
+            "hooks": ClaudeConfigLoader.loadHooks(projectPath: projectPath).count,
+            "subAgents": SubAgent.builtIn.count + ClaudeConfigLoader.loadCustomAgents().count,
             "plugins": ClaudeConfigLoader.loadPlugins().count,
             "outputStyles": ClaudeConfigLoader.loadOutputStyles(projectPath: projectPath).count,
         ]
@@ -279,6 +307,7 @@ final class AppState {
                 if HighlightedText.fuzzyMatch(project.name, query: trimmed) != nil { return project }
                 let matchingSessions = project.sessions.filter {
                     HighlightedText.fuzzyMatch($0.title, query: trimmed) != nil
+                        || HighlightedText.fuzzyMatch($0.id, query: trimmed) != nil
                 }
                 if matchingSessions.isEmpty { return nil }
                 return Project(id: project.id, name: project.name, path: project.path, sessions: matchingSessions)
@@ -351,7 +380,8 @@ final class AppState {
         _ message: String,
         icon: String? = nil,
         style: Toast.ToastStyle = .success,
-        url: URL? = nil
+        url: URL? = nil,
+        animateIcon: Bool = false
     ) {
         let lines = message.components(separatedBy: "\n")
         var result = (try? AttributedString(markdown: lines[0])) ?? AttributedString(lines[0])
@@ -360,7 +390,7 @@ final class AppState {
             let parsed = (try? AttributedString(markdown: line)) ?? AttributedString(line)
             result.append(parsed)
         }
-        let toast = Toast(message: result, icon: icon, style: style, url: url)
+        let toast = Toast(message: result, icon: icon, style: style, url: url, animateIcon: animateIcon)
         withAnimation(.easeInOut(duration: 0.25)) {
             toastQueue.append(toast)
         }

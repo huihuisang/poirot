@@ -14,8 +14,19 @@ struct ContentView: View {
     private var sessionLoadTask: Task<Void, Never>?
     @State
     private var fileWatcher: FileWatcher?
+    @State
+    private var debugFileWatcher: FileWatcher?
+    @State
+    private var facetsWatcher: FileWatcher?
     @AppStorage("hasCompletedOnboarding")
     private var hasCompletedOnboarding = false
+    @AppStorage("accentColor")
+    private var accentColorRaw = AccentColor.golden.rawValue
+    @AppStorage("colorTheme")
+    private var colorThemeRaw = ColorTheme.default.rawValue
+    private var sidebarNavItems: [NavigationItem] {
+        provider.navigationItems
+    }
 
     var body: some View {
         splitView
@@ -28,14 +39,6 @@ struct ContentView: View {
             }
             .keyboardShortcut(for: .search) {
                 appState.isSearchPresented.toggle()
-            }
-            .keyboardShortcut(for: .find) {
-                if appState.selectedSession != nil {
-                    appState.isSessionSearchActive.toggle()
-                    if !appState.isSessionSearchActive {
-                        appState.sessionSearchQuery = ""
-                    }
-                }
             }
             .keyboardShortcut(for: "[") {
                 appState.navigateBack()
@@ -54,6 +57,33 @@ struct ContentView: View {
             .onChange(of: appState.selectedSession) { _, newSession in
                 handleSessionChange(newSession)
             }
+            .onChange(of: colorThemeRaw) {
+                if let theme = ColorTheme(rawValue: colorThemeRaw) {
+                    ColorThemeStorage.current = theme
+                }
+            }
+            .onChange(of: accentColorRaw) {
+                if let color = AccentColor(rawValue: accentColorRaw) {
+                    AccentColorStorage.current = color
+                }
+            }
+            .keyboardNavigation(
+                sidebarItemCount: sidebarNavItems.count,
+                onSidebarActivate: { activateSidebarItem() }
+            )
+            .sheet(isPresented: Binding(
+                get: { appState.isShortcutHelpPresented },
+                set: { appState.isShortcutHelpPresented = $0 }
+            )) {
+                ShortcutHelpView()
+            }
+    }
+
+    private func activateSidebarItem() {
+        let items = sidebarNavItems
+        let index = appState.sidebarKeyboardIndex
+        guard index >= 0, index < items.count else { return }
+        appState.selectedNav = items[index]
     }
 
     private var splitView: some View {
@@ -72,7 +102,7 @@ struct ContentView: View {
             toolbarContextual
         }
         .frame(minWidth: 900, minHeight: 600)
-        .id(appState.fontScale)
+        .id("\(appState.fontScale)-\(colorThemeRaw)-\(accentColorRaw)")
         .overlay(alignment: .top) {
             ToastOverlay()
         }
@@ -91,24 +121,45 @@ struct ContentView: View {
             }
             watcher.start(path: sessionLoader.claudeProjectsPath)
             fileWatcher = watcher
-        }
-        .task {
-            if let release = await UpdateChecker.checkForUpdate() {
-                appState.showToast(
-                    "New version available: **\(release.tagName)**\nTap to download from GitHub",
-                    icon: "arrow.down.circle.fill",
-                    style: .info,
-                    url: URL(string: release.htmlURL)
-                )
+
+            // Watch facets directory for live updates
+            if facetsWatcher == nil {
+                let fWatcher = FileWatcher { [weak appState] in
+                    appState?.refreshID = UUID()
+                }
+                let facetsPath = FacetsLoader().claudeFacetsPath
+                // Ensure directory exists before watching
+                let fm = FileManager.default
+                if fm.fileExists(atPath: facetsPath) {
+                    fWatcher.start(path: facetsPath)
+                    facetsWatcher = fWatcher
+                }
             }
         }
         .onDisappear {
             fileWatcher?.stop()
             fileWatcher = nil
+            debugFileWatcher?.stop()
+            debugFileWatcher = nil
+            facetsWatcher?.stop()
+            facetsWatcher = nil
+        }
+        .sheet(item: Binding(
+            get: { appState.showDebugLogSessionId.map(DebugLogSheetId.init) },
+            set: { appState.showDebugLogSessionId = $0?.sessionId }
+        )) { item in
+            DebugLogView(sessionId: item.sessionId)
+        }
+        .onAppear {
+            startDebugFileWatcher()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             fileWatcher?.stop()
             fileWatcher = nil
+            debugFileWatcher?.stop()
+            debugFileWatcher = nil
+            facetsWatcher?.stop()
+            facetsWatcher = nil
         }
     }
 
@@ -170,7 +221,6 @@ struct ContentView: View {
     private enum ToolbarMode {
         case session(Session)
         case configDetail
-        case configList
         case none
     }
 
@@ -182,8 +232,6 @@ struct ContentView: View {
         } else {
             if appState.activeConfigDetail != nil {
                 return .configDetail
-            } else if Self.addableConfigScreenIDs.contains(appState.selectedNav.id) {
-                return .configList
             }
         }
         return .none
@@ -210,17 +258,7 @@ struct ContentView: View {
     private var toolbarContextual: some ToolbarContent { // swiftlint:disable:this attributes
         switch toolbarMode {
         case let .session(session):
-            ToolbarItemGroup(placement: .principal) {
-                Spacer()
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                SessionToolbarActions(session: session)
-                expandCollapseButton
-                SessionToolbarFilter()
-                SessionToolbarSearch()
-                SessionToolbarDelete(session: session)
-                SessionToolbarClose()
-            }
+            SessionToolbar(session: session)
         case .configDetail:
             ToolbarItemGroup(placement: .principal) {
                 Spacer()
@@ -230,35 +268,9 @@ struct ContentView: View {
                 ConfigToolbarDelete()
                 ConfigToolbarClose()
             }
-        case .configList:
-            ToolbarItemGroup(placement: .principal) {
-                Spacer()
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    appState.configAddTrigger = UUID()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .help("Create New")
-            }
         case .none:
             ToolbarItem(placement: .automatic) { EmptyView() }
         }
-    }
-
-    private var expandCollapseButton: some View {
-        Button {
-            appState.allBlocksExpanded.toggle()
-        } label: {
-            Image(
-                systemName: appState.allBlocksExpanded
-                    ? "arrow.down.right.and.arrow.up.left"
-                    : "arrow.up.left.and.arrow.down.right"
-            )
-            .contentTransition(.symbolEffect(.replace))
-        }
-        .help(appState.allBlocksExpanded ? "Collapse All" : "Expand All")
     }
 
     // MARK: - Batch Loading
@@ -321,7 +333,10 @@ struct ContentView: View {
         switch appState.selectedNav.id {
         case NavigationItem.sessions.id:
             if let session = appState.selectedSession {
-                if appState.isLoadingSession || (session.messages.isEmpty && session.fileURL != nil) {
+                if appState.isShowingFileHistory {
+                    FileHistoryView(session: session)
+                        .transition(.opacity)
+                } else if appState.isLoadingSession || (session.messages.isEmpty && session.fileURL != nil) {
                     SessionSkeletonView()
                         .transition(.opacity)
                 } else {
@@ -334,6 +349,14 @@ struct ContentView: View {
             } else {
                 HomeView()
             }
+        case NavigationItem.todos.id:
+            TodosOverviewView()
+                .transition(.opacity)
+        case NavigationItem.history.id:
+            HistoryListView()
+                .transition(.opacity)
+        case NavigationItem.analytics.id:
+            AnalyticsDashboardView()
         default:
             if let configItem = provider.configurationItems
                 .first(where: { $0.id == appState.selectedNav.id }) {
@@ -352,12 +375,18 @@ struct ContentView: View {
             CommandsListView(item: item)
         case NavigationItem.skills.id:
             SkillsListView(item: item)
+        case NavigationItem.plans.id:
+            PlansListView(item: item)
         case NavigationItem.mcpServers.id:
             MCPServersListView(item: item)
         case NavigationItem.models.id:
             ModelsListView(item: item)
         case NavigationItem.subAgents.id:
             SubAgentsListView(item: item)
+        case NavigationItem.memory.id:
+            MemoryListView(item: item)
+        case NavigationItem.hooks.id:
+            HooksListView(item: item)
         case NavigationItem.plugins.id:
             PluginsListView(item: item)
         case NavigationItem.outputStyles.id:
@@ -366,12 +395,35 @@ struct ContentView: View {
             ConfigScreenHeader(item: item)
         }
     }
+}
 
-    private static let addableConfigScreenIDs: Set<String> = [
-        NavigationItem.commands.id,
-        NavigationItem.skills.id,
-        NavigationItem.outputStyles.id,
-    ]
+// MARK: - Debug File Watcher
+
+extension ContentView {
+    func startDebugFileWatcher() {
+        guard debugFileWatcher == nil else { return }
+        let debugPath = DebugLogLoader().claudeDebugPath
+        let fm = FileManager.default
+        // Create the directory if it doesn't exist so the watcher can attach
+        if !fm.fileExists(atPath: debugPath) {
+            try? fm.createDirectory(
+                atPath: debugPath,
+                withIntermediateDirectories: true
+            )
+        }
+        let watcher = FileWatcher { [weak appState] in
+            appState?.refreshID = UUID()
+        }
+        watcher.start(path: debugPath)
+        debugFileWatcher = watcher
+    }
+}
+
+// MARK: - Debug Log Sheet ID
+
+private struct DebugLogSheetId: Identifiable {
+    let sessionId: String
+    var id: String { sessionId }
 }
 
 // MARK: - Keyboard Shortcut Helper
@@ -396,12 +448,10 @@ private extension View {
 
 private enum SearchShortcut {
     case search
-    case find
 
     var key: KeyEquivalent {
         switch self {
         case .search: "k"
-        case .find: "f"
         }
     }
 }
